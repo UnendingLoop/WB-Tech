@@ -3,16 +3,16 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"orderservice/internal/kafka"
+	"orderservice/internal/cache"
+	"orderservice/internal/repository"
 
 	"github.com/go-chi/chi/v5"
-	"gorm.io/gorm"
 )
 
 // OrderHandler provides a database connection and access to handlers
-type OrderHandler struct { // может обращение в базу вообще тут не надо? перенести в слой кафки? наверное только из мапы надо доставать инфу и отдавать в w
-	DB  *gorm.DB //Нужен доступ к БД если нет данных в кэше/мапе
-	Map *kafka.OrderMap
+type OrderHandler struct {
+	Repo *repository.OrderRepository
+	Map  *cache.OrderMap
 }
 
 // GetOrderInfo provides order info by its ID from URL
@@ -32,6 +32,20 @@ func (OH *OrderHandler) GetOrderInfo(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	//тут нужен запрос в базу через кафку, так как в кеше нет ордера
+	// В кеше нет, идем в бд:
+	orderFromDB, err := OH.Repo.GetOrderByUID(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Order not found", http.StatusNotFound)
+		return
+	}
 
+	// Обновление кеша
+	OH.Map.Lock()
+	OH.Map.Check[id] = *orderFromDB
+	OH.Map.Unlock()
+
+	// Пишем ответ
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(orderFromDB)
+	w.WriteHeader(http.StatusOK)
 }
