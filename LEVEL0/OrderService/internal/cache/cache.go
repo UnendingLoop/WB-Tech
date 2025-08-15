@@ -1,7 +1,8 @@
 package cache
 
 import (
-	"fmt"
+	"context"
+	"log"
 	"orderservice/internal/model"
 	"orderservice/internal/repository"
 	"sync"
@@ -9,31 +10,27 @@ import (
 
 // OrderMap provides access to cache-map, contains embedded mutex features
 type OrderMap struct {
-	Check        map[string]model.Order //Check - более читаемое название при вызове: OH.Map.Check[id]
-	Add          map[string]model.Order //Add - более читаемое название при вызове: OH.Map.Add[id]
+	CacheMap     map[string]model.Order
 	Repo         *repository.OrderRepository
 	sync.RWMutex //встраиваем методы мютекса для защиты
 }
 
-// CreateOrderCache returns a new map for using as a cache, access to DB and embedded mutex
-func CreateOrderCache(repo *repository.OrderRepository) *OrderMap {
+// CreateAndWarmUpOrderCache returns a new map with warmed up cache, access to DB and embedded mutex
+func CreateAndWarmUpOrderCache(repo *repository.OrderRepository) (*OrderMap, error) {
 	simpleMap := make(map[string]model.Order)
-	return &OrderMap{Check: simpleMap, Add: simpleMap, Repo: repo}
-}
-
-// WarmUpCache loads all records from DB and adds them to cache/map
-func WarmUpCache(orderMap *OrderMap) error {
-	orders, err := orderMap.Repo.GetAllOrders(orderMap.Check)
+	orderMap := OrderMap{Repo: repo}
+	orders, err := orderMap.Repo.GetAllOrders(context.Background())
 	if err != nil {
-		return err
+		log.Printf("Failed to read orders from DB to warm up cahce: %v", err)
+		return nil, err
 	}
 
 	orderMap.Lock()
 	for _, v := range orders {
-		orderMap.Add[v.OrderUID] = v
+		orderMap.CacheMap[v.OrderUID] = v
 	}
+	orderMap.CacheMap = simpleMap
 	orderMap.Unlock()
-
-	fmt.Println("Cache successfully loaded!")
-	return nil
+	log.Println("Cache successfully loaded!")
+	return &orderMap, nil
 }

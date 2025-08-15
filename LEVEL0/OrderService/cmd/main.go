@@ -10,6 +10,7 @@ import (
 	"orderservice/internal/db"
 	"orderservice/internal/kafka"
 	"orderservice/internal/repository"
+	"orderservice/internal/service"
 	"os"
 
 	"github.com/go-chi/chi/v5"
@@ -26,26 +27,32 @@ func main() {
 		log.Fatal("DATABASE_URL is not set in env")
 	}
 	db := db.ConnectPostgres(dsn)
-	repo := repository.NewOrderRepository(db)
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("Failed to retrieve sql.DB: %v", err)
+	}
+	defer sqlDB.Close()
 
-	orderMap := cache.CreateOrderCache(repo)
-	if err := cache.WarmUpCache(orderMap); err != nil {
+	repo := repository.NewOrderRepository(db, dsn)
+	orderMap, err := cache.CreateAndWarmUpOrderCache(repo)
+	if err != nil {
 		log.Fatalf("Failed to load cache: %v", err)
 	}
 
-	ctx := context.Background()
-	go kafka.StartConsumer(ctx, orderMap)
-
-	orderRepo := handler.OrderHandler{
-		Repo: repo,
-		Map:  orderMap,
+	orderHandler := handler.OrderHandler{
+		Service: &service.OrderService{
+			Repo: repo,
+			Map:  orderMap,
+		},
 	}
 
 	r := chi.NewRouter()
-	r.Get("/order/{order_uid}", orderRepo.GetOrderInfo)
+	r.Get("/order/", orderHandler.GetOrderInfo)
 
 	fmt.Println("Server running on http://localhost:8081")
 	if err := http.ListenAndServe(":8081", r); err != nil {
 		log.Fatal(err)
 	}
+
+	go kafka.StartConsumer(context.Background(), orderHandler.Service)
 }
