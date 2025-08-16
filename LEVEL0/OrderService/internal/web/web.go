@@ -15,7 +15,7 @@ var (
 // LoadTemplates инициализирует шаблоны один раз при старте
 func LoadTemplates() {
 	once.Do(func() {
-		tplCache = template.Must(template.ParseGlob(filepath.Join("templates", "*.gohtml")))
+		tplCache = template.Must(template.ParseGlob(filepath.Join("internal", "web", "*.gohtml")))
 	})
 }
 

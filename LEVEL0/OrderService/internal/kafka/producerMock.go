@@ -11,9 +11,9 @@ import (
 )
 
 // EmulateMsgSending used to emulate real messages flow to test the app in real-time with real DB; mock json-data is read from file
-func EmulateMsgSending() {
+func EmulateMsgSending(broker, topic string) {
 	writer := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:      []string{kafkaBroker},
+		Brokers:      []string{broker},
 		Topic:        topic,
 		Balancer:     &kafka.LeastBytes{},
 		RequiredAcks: int(kafka.RequireOne),

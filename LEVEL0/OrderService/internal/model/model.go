@@ -16,7 +16,7 @@ type CustomTime struct {
 
 // Order is a complete model with embedded structs for storing order information received from Kafka
 type Order struct {
-	OrderUID    string `gorm:"primaryKey;type:uuid" json:"order_uid"`
+	OrderUID    string `gorm:"primaryKey" json:"order_uid"`
 	TrackNumber string `gorm:"not null" json:"track_number"`
 	Entry       string `gorm:"not null" json:"entry"`
 
@@ -37,7 +37,7 @@ type Order struct {
 // Delivery contains delivery information for a certain order
 type Delivery struct {
 	DID      uint   `gorm:"primaryKey;autoIncrement" json:"-"`
-	OrderUID string `gorm:"index;type:uuid;not null"` // FK на Order.OrderUID
+	OrderUID string `gorm:"index;not null"` // FK на Order.OrderUID
 	Name     string `gorm:"not null" json:"name"`
 	Phone    string `gorm:"not null" json:"phone"`
 	Zip      string `gorm:"not null" json:"zip"`

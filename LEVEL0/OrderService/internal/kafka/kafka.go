@@ -14,15 +14,10 @@ type Kafka struct {
 	Map *cache.OrderMap
 }
 
-const (
-	kafkaBroker = "localhost:9092"
-	topic       = "orders"
-)
-
 // NewKafkaWriter returns new Kafka writer in order to emulate messages from it
-func NewKafkaWriter() *kafka.Writer {
+func NewKafkaWriter(broker, topic string) *kafka.Writer {
 	return kafka.NewWriter(kafka.WriterConfig{
-		Brokers:      []string{kafkaBroker},
+		Brokers:      []string{broker},
 		Topic:        topic,
 		Balancer:     &kafka.LeastBytes{},
 		RequiredAcks: int(kafka.RequireOne),
@@ -31,9 +26,9 @@ func NewKafkaWriter() *kafka.Writer {
 }
 
 // NewKafkaReader returns a new Kafka reader
-func NewKafkaReader() *kafka.Reader {
+func NewKafkaReader(broker, topic string) *kafka.Reader {
 	return kafka.NewReader(kafka.ReaderConfig{
-		Brokers:     []string{kafkaBroker},
+		Brokers:     []string{broker},
 		Topic:       topic,
 		GroupID:     "order-service",
 		MinBytes:    10e3,

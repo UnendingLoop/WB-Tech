@@ -27,11 +27,12 @@ type orderService struct {
 
 var (
 	ErrRecordNotFound = errors.New("Запрошенный номер заказа не найдет в базе!")
-	ErrJsonValidation = errors.New("Ошибка декодирования JSON-сообщения: ")
+	ErrJSONDecode     = errors.New("Ошибка декодирования JSON-сообщения: ")
 	ErrIncompleteJson = errors.New("Json содержит неполные данные")
 )
 
-func NewService(repo repository.OrderRepository, mapa *cache.OrderMap) OrderService {
+// NewOrderService - returns *orderService
+func NewOrderService(repo repository.OrderRepository, mapa *cache.OrderMap) OrderService {
 	return &orderService{Repo: repo, Map: mapa}
 }
 
@@ -40,8 +41,8 @@ func (OS *orderService) AddNewOrder(msg *kafka.Message) {
 	var order model.Order
 	//Обработка ошибки декодирования
 	if err := json.Unmarshal(msg.Value, &order); err != nil {
-		log.Printf(ErrJsonValidation.Error(), err)
-		OS.pushToInvalidRequests(msg.Value, ErrJsonValidation)
+		log.Printf(ErrJSONDecode.Error(), err)
+		OS.pushToInvalidRequests(msg.Value, ErrJSONDecode)
 		return
 	}
 	//Проверка на существование в кеше
@@ -60,7 +61,7 @@ func (OS *orderService) AddNewOrder(msg *kafka.Message) {
 	//Обработка ошибок валидации данных
 	if !isValidOrderJSON(&order) {
 		log.Println("JSON is incomplete")
-		OS.pushToInvalidRequests(msg.Value, ErrJsonValidation)
+		OS.pushToInvalidRequests(msg.Value, ErrJSONDecode)
 		return
 	}
 
@@ -150,9 +151,7 @@ func isValidOrderJSON(order *model.Order) bool {
 		p.Amount == 0 ||
 		p.PaymentDT.IsZero() ||
 		p.Bank == "" ||
-		p.DeliveryCost == 0 ||
-		p.GoodsTotal == 0 ||
-		p.CustomFee == 0 {
+		p.GoodsTotal == 0 {
 		return false
 	}
 
