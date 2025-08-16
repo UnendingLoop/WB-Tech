@@ -7,7 +7,7 @@ import (
 )
 
 // StartConsumer initializes listening to Kafka messages, which will be forwarded to Service-layer
-func StartConsumer(ctx context.Context, srv *service.OrderService) {
+func StartConsumer(ctx context.Context, srv service.OrderService) {
 	reader := NewKafkaReader()
 	defer reader.Close()
 

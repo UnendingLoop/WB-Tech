@@ -10,7 +10,7 @@ import (
 
 // OrderHandler provides access to Service layer
 type OrderHandler struct {
-	Service *service.OrderService
+	Service service.OrderService
 }
 
 // GetOrderInfo provides order info by its ID from URL

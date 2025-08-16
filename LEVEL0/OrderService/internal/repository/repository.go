@@ -14,19 +14,26 @@ import (
 	"gorm.io/gorm"
 )
 
-type OrderRepository struct {
+type OrderRepository interface {
+	AddNewOrder(ctx context.Context, neworder *model.Order) error
+	GetOrderByUID(ctx context.Context, uid string) (*model.Order, error)
+	PushOrderToRawTable(ctx context.Context, brokenOrder model.InvalidRequest) error
+	GetAllOrders(ctx context.Context) ([]model.Order, error)
+}
+
+type orderRepository struct {
 	DB           *gorm.DB
 	dsn          string      //для переподключения если отвалилась база
 	reconnecting atomic.Bool //флаг запущенного переподключения к БД
 	sync.Mutex               //для предотвращения множественного вызова connectWithRetry из других экземпляров хендлеров при отвале БД
 }
 
-func NewOrderRepository(db *gorm.DB, dsnDB string) *OrderRepository {
-	return &OrderRepository{DB: db, dsn: dsnDB}
+func NewOrderRepository(db *gorm.DB, dsnDB string) OrderRepository {
+	return &orderRepository{DB: db, dsn: dsnDB}
 }
 
 // GetOrderByUID finds order by its UUID and provides it with error message(if any)
-func (OR *OrderRepository) GetOrderByUID(ctx context.Context, uid string) (*model.Order, error) {
+func (OR *orderRepository) GetOrderByUID(ctx context.Context, uid string) (*model.Order, error) {
 	var order model.Order
 	for range 3 { //ограничимся тройным циклом вместо рекурсивного вызова всей AddNewOrder
 		err := OR.DB.WithContext(ctx).Preload("Delivery").Preload("Payment").Preload("Items").Where("order_uid = ?", uid).First(&order).Error
@@ -52,7 +59,7 @@ func (OR *OrderRepository) GetOrderByUID(ctx context.Context, uid string) (*mode
 }
 
 // AddNewOrder creates a new record in DB using ctx and transaction
-func (OR *OrderRepository) AddNewOrder(ctx context.Context, neworder *model.Order) error {
+func (OR *orderRepository) AddNewOrder(ctx context.Context, neworder *model.Order) error {
 	var tx *gorm.DB
 	defer tx.Rollback()
 	defer func() {
@@ -110,7 +117,7 @@ func (OR *OrderRepository) AddNewOrder(ctx context.Context, neworder *model.Orde
 }
 
 // GetAllOrders retreives existing orders from DB with limit=1000, used for warming up cache at app launch
-func (OR *OrderRepository) GetAllOrders(ctx context.Context) ([]model.Order, error) {
+func (OR *orderRepository) GetAllOrders(ctx context.Context) ([]model.Order, error) {
 	var orders []model.Order
 
 	for range 3 { //ограничимся тройным циклом вместо рекурсивного вызова всей GetAllOrders
@@ -137,7 +144,7 @@ func (OR *OrderRepository) GetAllOrders(ctx context.Context) ([]model.Order, err
 }
 
 // PushOrderToRawTable adds invalid JSONs into separate table for further investigation
-func (OR *OrderRepository) PushOrderToRawTable(ctx context.Context, brokenOrder model.InvalidRequest) error {
+func (OR *orderRepository) PushOrderToRawTable(ctx context.Context, brokenOrder model.InvalidRequest) error {
 	for range 3 { //ограничимся тройным циклом вместо рекурсивного вызова всей PushOrderToRawTable
 		err := OR.DB.Create(&brokenOrder).Error
 		if err == nil { //если успешно - сразу выходим из цикла и функции
@@ -160,7 +167,7 @@ func (OR *OrderRepository) PushOrderToRawTable(ctx context.Context, brokenOrder 
 	return nil
 }
 
-func (OR *OrderRepository) connectWithRetry() error {
+func (OR *orderRepository) connectWithRetry() error {
 	OR.reconnecting.Store(true)
 	defer OR.reconnecting.Store(false)
 

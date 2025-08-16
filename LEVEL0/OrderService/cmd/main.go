@@ -11,6 +11,7 @@ import (
 	"orderservice/internal/kafka"
 	"orderservice/internal/repository"
 	"orderservice/internal/service"
+	"orderservice/internal/web"
 	"os"
 
 	"github.com/go-chi/chi/v5"
@@ -38,12 +39,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load cache: %v", err)
 	}
-
+	svc := service.NewService(repo, orderMap)
 	orderHandler := handler.OrderHandler{
-		Service: &service.OrderService{
-			Repo: repo,
-			Map:  orderMap,
-		},
+		Service: svc,
 	}
 
 	r := chi.NewRouter()
@@ -54,5 +52,6 @@ func main() {
 		log.Fatal(err)
 	}
 
+	web.LoadTemplates()
 	go kafka.StartConsumer(context.Background(), orderHandler.Service)
 }

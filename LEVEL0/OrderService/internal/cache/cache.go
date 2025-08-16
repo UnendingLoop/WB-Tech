@@ -11,12 +11,12 @@ import (
 // OrderMap provides access to cache-map, contains embedded mutex features
 type OrderMap struct {
 	CacheMap     map[string]model.Order
-	Repo         *repository.OrderRepository
+	Repo         repository.OrderRepository
 	sync.RWMutex //встраиваем методы мютекса для защиты
 }
 
 // CreateAndWarmUpOrderCache returns a new map with warmed up cache, access to DB and embedded mutex
-func CreateAndWarmUpOrderCache(repo *repository.OrderRepository) (*OrderMap, error) {
+func CreateAndWarmUpOrderCache(repo repository.OrderRepository) (*OrderMap, error) {
 	simpleMap := make(map[string]model.Order)
 	orderMap := OrderMap{Repo: repo}
 	orders, err := orderMap.Repo.GetAllOrders(context.Background())

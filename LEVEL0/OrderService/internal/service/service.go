@@ -14,9 +14,14 @@ import (
 	"gorm.io/gorm"
 )
 
+type OrderService interface {
+	AddNewOrder(msg *kafka.Message)
+	GetOrderInfo(ctx context.Context, uid string) (*model.Order, error)
+}
+
 // OrderService provides access to repo - DB operations, and contains a Map - cached orders
-type OrderService struct {
-	Repo *repository.OrderRepository
+type orderService struct {
+	Repo repository.OrderRepository
 	Map  *cache.OrderMap
 }
 
@@ -26,8 +31,12 @@ var (
 	ErrIncompleteJson = errors.New("Json содержит неполные данные")
 )
 
+func NewService(repo repository.OrderRepository, mapa *cache.OrderMap) OrderService {
+	return &orderService{Repo: repo, Map: mapa}
+}
+
 // AddNewOrder receives rawJson from Kafka consumer and creates new order in DB if rawJSON is valid, otherwise adds broken JSON into table InvalidRequests
-func (OS *OrderService) AddNewOrder(msg *kafka.Message) {
+func (OS *orderService) AddNewOrder(msg *kafka.Message) {
 	var order model.Order
 	//Обработка ошибки декодирования
 	if err := json.Unmarshal(msg.Value, &order); err != nil {
@@ -69,7 +78,7 @@ func (OS *OrderService) AddNewOrder(msg *kafka.Message) {
 }
 
 // GetOrderInfo used only for API-calls, returns model.Order by its uuid from DB if there is any, or nil and error
-func (OS *OrderService) GetOrderInfo(ctx context.Context, uid string) (*model.Order, error) {
+func (OS *orderService) GetOrderInfo(ctx context.Context, uid string) (*model.Order, error) {
 	//Проверяем сначала кэш
 	OS.Map.RLock()
 	order, ok := OS.Map.CacheMap[uid]
@@ -96,7 +105,7 @@ func (OS *OrderService) GetOrderInfo(ctx context.Context, uid string) (*model.Or
 	return nil, err
 }
 
-func (OS *OrderService) pushToInvalidRequests(brokenJSON []byte, origErr error) {
+func (OS *orderService) pushToInvalidRequests(brokenJSON []byte, origErr error) {
 	if err := OS.Repo.PushOrderToRawTable(context.Background(), model.InvalidRequest{
 		ReceivedAt:   time.Now(),
 		RawJSON:      brokenJSON,
