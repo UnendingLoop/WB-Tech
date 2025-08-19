@@ -45,6 +45,14 @@ func (OS *orderService) AddNewOrder(msg *kafka.Message) {
 		OS.pushToInvalidRequests(msg.Value, ErrJSONDecode)
 		return
 	}
+
+	//Обработка ошибок валидации данных
+	if !isValidOrderJSON(&order) {
+		log.Println("JSON is incomplete")
+		OS.pushToInvalidRequests(msg.Value, ErrJSONDecode)
+		return
+	}
+
 	//Проверка на существование в кеше
 	OS.Map.RLock()
 	_, exists := OS.Map.CacheMap[order.OrderUID]
@@ -56,12 +64,6 @@ func (OS *orderService) AddNewOrder(msg *kafka.Message) {
 	//Проверка на существование в БД
 	if _, err := OS.GetOrderInfo(context.Background(), order.OrderUID); err == nil {
 		log.Printf("Заказ с номером '%s' уже существует!", order.OrderUID)
-		return
-	}
-	//Обработка ошибок валидации данных
-	if !isValidOrderJSON(&order) {
-		log.Println("JSON is incomplete")
-		OS.pushToInvalidRequests(msg.Value, ErrJSONDecode)
 		return
 	}
 
@@ -109,12 +111,14 @@ func (OS *orderService) GetOrderInfo(ctx context.Context, uid string) (*model.Or
 func (OS *orderService) pushToInvalidRequests(brokenJSON []byte, origErr error) {
 	if err := OS.Repo.PushOrderToRawTable(context.Background(), model.InvalidRequest{
 		ReceivedAt:   time.Now(),
-		RawJSON:      brokenJSON,
+		RawJSON:      string(brokenJSON),
 		ErrorMessage: origErr.Error(),
 		Status:       "New", //потом можно вынести в отдельный тип
 	}); err != nil {
 		log.Printf("Failed to safe order to table InvalidRequests: %v", err)
+		return
 	}
+	log.Printf("Invalid JSON saved to InvalidRequests.")
 }
 
 func isValidOrderJSON(order *model.Order) bool {
@@ -127,7 +131,7 @@ func isValidOrderJSON(order *model.Order) bool {
 		order.DeliveryService == "" ||
 		order.ShardKey == "" ||
 		order.OofShard == "" ||
-		order.DateCreated.IsZero() {
+		order.DateCreated == "" {
 		return false
 	}
 
@@ -149,7 +153,7 @@ func isValidOrderJSON(order *model.Order) bool {
 		p.Currency == "" ||
 		p.Provider == "" ||
 		p.Amount == 0 ||
-		p.PaymentDT.IsZero() ||
+		p.PaymentDT == 0 ||
 		p.Bank == "" ||
 		p.GoodsTotal == 0 {
 		return false

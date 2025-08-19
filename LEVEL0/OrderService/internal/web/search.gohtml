@@ -8,13 +8,26 @@
 </head>
 <body class="container mt-5">
 	<h2>Поиск заказа</h2>
-	<form method="get" action="/order/">
-		<div class="mb-3">
-			<label for="uid" class="form-label">Order UID</label>
-			<input type="text" class="form-control" id="uid" name="uid" required>
-		</div>
-		<button type="submit" class="btn btn-primary">Искать</button>
-	</form>
+
+	<!-- Убираем action и method -->
+	<form id="searchForm" method="get">
+    <div class="mb-3">
+        <label for="uid" class="form-label">Order UID</label>
+        <input type="text" class="form-control" id="uid" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Искать</button>
+</form>
+
+	<script>
+document.getElementById("searchForm").addEventListener("submit", function(e) {
+    const uid = document.getElementById("uid").value.trim();
+    if (uid) {
+        this.action = "/order/" + encodeURIComponent(uid); // подменяем action формы
+    } else {
+        e.preventDefault();
+    }
+});
+</script>
 </body>
 </html>
 {{end}}

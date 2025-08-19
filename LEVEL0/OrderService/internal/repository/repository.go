@@ -61,34 +61,38 @@ func (OR *orderRepository) GetOrderByUID(ctx context.Context, uid string) (*mode
 // AddNewOrder creates a new record in DB using ctx and transaction
 func (OR *orderRepository) AddNewOrder(ctx context.Context, neworder *model.Order) error {
 	var tx *gorm.DB
-	defer tx.Rollback()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-			panic(r)
-		}
-	}()
+	neworder.Delivery.DID = nil
+	neworder.Payment.PID = nil
+	for i := range neworder.Items {
+		neworder.Items[i].IID = nil
+	}
+
 	auxFunc := func() error {
 		//вспомогательная функция со всеми транзакциями
 		tx = OR.DB.WithContext(ctx).Begin()
 		if err := tx.Create(&neworder).Error; err != nil {
+			tx.Rollback()
 			return err
 		}
 		neworder.Delivery.OrderUID = neworder.OrderUID
 		if err := tx.Create(&neworder.Delivery).Error; err != nil {
+			tx.Rollback()
 			return err
 		}
 		neworder.Payment.OrderUID = neworder.OrderUID
 		if err := tx.Create(&neworder.Payment).Error; err != nil {
+			tx.Rollback()
 			return err
 		}
 		for i := range neworder.Items {
 			neworder.Items[i].OrderUID = neworder.OrderUID
 		}
 		if err := tx.Create(&neworder.Items).Error; err != nil {
+			tx.Rollback()
 			return err
 		}
 		if err := tx.Commit().Error; err != nil {
+			tx.Rollback()
 			return err
 		}
 		return nil
@@ -145,6 +149,7 @@ func (OR *orderRepository) GetAllOrders(ctx context.Context) ([]model.Order, err
 
 // PushOrderToRawTable adds invalid JSONs into separate table for further investigation
 func (OR *orderRepository) PushOrderToRawTable(ctx context.Context, brokenOrder model.InvalidRequest) error {
+	brokenOrder.ID = nil
 	for range 3 { //ограничимся тройным циклом вместо рекурсивного вызова всей PushOrderToRawTable
 		err := OR.DB.Create(&brokenOrder).Error
 		if err == nil { //если успешно - сразу выходим из цикла и функции

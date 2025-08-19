@@ -25,12 +25,10 @@ func CreateAndWarmUpOrderCache(repo repository.OrderRepository) (*OrderMap, erro
 		return nil, err
 	}
 
-	orderMap.Lock()
 	for _, v := range orders {
-		orderMap.CacheMap[v.OrderUID] = v
+		simpleMap[v.OrderUID] = v
 	}
 	orderMap.CacheMap = simpleMap
-	orderMap.Unlock()
 	log.Println("Cache successfully loaded!")
 	return &orderMap, nil
 }

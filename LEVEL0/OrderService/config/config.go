@@ -3,16 +3,18 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
 
 // Config -
 type Config struct {
-	DSN         string
-	AppPort     string
-	KafkaBroker string
-	Topic       string
+	DSN                 string
+	AppPort             string
+	KafkaBroker         string
+	Topic               string
+	LaunchMockGenerator bool
 }
 
 // GetConfig -
@@ -40,5 +42,10 @@ func GetConfig() Config {
 	if topic == "" {
 		log.Fatal("KAFKA_TOPIC is not set in env")
 	}
-	return Config{DSN: dsn, AppPort: port, KafkaBroker: broker, Topic: topic}
+
+	mockStart, err := strconv.ParseBool(os.Getenv("START_MOCK_PRODUCER"))
+	if err != nil {
+		log.Fatal("START_MOCK_PRODUCER has invalid format in env.")
+	}
+	return Config{DSN: dsn, AppPort: port, KafkaBroker: broker, Topic: topic, LaunchMockGenerator: mockStart}
 }

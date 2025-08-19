@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -23,6 +24,7 @@ import (
 
 func main() {
 	config := config.GetConfig()
+	fmt.Println(config)
 	db := db.ConnectPostgres(config.DSN)
 
 	sqlDB, err := db.DB()
@@ -42,6 +44,7 @@ func main() {
 	}
 
 	r := chi.NewRouter()
+	r.Get("/order/{uid}", orderHandler.GetOrderInfo)
 	r.Get("/order/", orderHandler.GetOrderInfo)
 	srv := http.Server{
 		Addr:         (":" + config.AppPort),
@@ -64,21 +67,28 @@ func main() {
 
 	web.LoadTemplates()
 
+	kafka.WaitKafkaReady(config.KafkaBroker)
+
 	ctx, kafkaCancel := context.WithCancel(context.Background())
 	wg.Add(1)
 	go kafka.StartConsumer(ctx, orderHandler.Service, config.KafkaBroker, config.Topic, &wg)
+	time.Sleep(3 * time.Second)
+
+	if config.LaunchMockGenerator {
+		go kafka.EmulateMsgSending(config.KafkaBroker, config.Topic)
+	}
 
 	//Starting shutdown signal listener
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	defer close(sig)
 
 	wg.Add(1)
 	go func() {
-		log.Print("Ctrl+C listener is running...")
+		log.Print("Interruption listener is running...")
 		defer wg.Done()
 		<-sig
-		log.Println("Interrupt received. Starting shutdown sequence...")
+		log.Println("Interrupt received!!! Starting shutdown sequence...")
 		//stop Kafka consumer:
 		kafkaCancel()
 		log.Println("Kafka consumer stopping...")

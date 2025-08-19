@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"orderservice/internal/service"
 	"orderservice/internal/web"
+
+	"github.com/go-chi/chi/v5"
 )
 
 // OrderHandler provides access to Service layer
@@ -15,7 +17,7 @@ type OrderHandler struct {
 
 // GetOrderInfo provides order info by its ID from URL
 func (OH *OrderHandler) GetOrderInfo(w http.ResponseWriter, r *http.Request) {
-	uid := r.URL.Query().Get("uid")
+	uid := chi.URLParam(r, "uid")
 	if uid == "" {
 		web.Render(w, "search", nil)
 		return

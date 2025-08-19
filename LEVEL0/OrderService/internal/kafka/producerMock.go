@@ -20,7 +20,7 @@ func EmulateMsgSending(broker, topic string) {
 		Async:        false,
 	})
 
-	file, err := os.Open("./cmd/internal/kafka/mocks.json")
+	file, err := os.Open("./internal/kafka/mocks.json")
 	if err != nil {
 		log.Fatalf("Failed to open json-mocks file: %v\nExiting application.", err)
 	}
@@ -33,7 +33,6 @@ func EmulateMsgSending(broker, topic string) {
 		counter++
 		line := scanner.Bytes()
 		err = writer.WriteMessages(context.Background(), kafka.Message{
-			Topic: "orders",
 			Value: line,
 		})
 		if err != nil {
@@ -42,5 +41,19 @@ func EmulateMsgSending(broker, topic string) {
 		}
 		log.Printf("Order #%d published to Kafka", counter)
 	}
+
+}
+
+func WaitKafkaReady(broker string) {
+	for {
+		conn, err := kafka.Dial("tcp", broker)
+		if err == nil {
+			conn.Close()
+			break
+		}
+		log.Println("Kafka not ready, retrying in 5s...")
+		time.Sleep(5 * time.Second)
+	}
+	time.Sleep(20 * time.Second)
 
 }
