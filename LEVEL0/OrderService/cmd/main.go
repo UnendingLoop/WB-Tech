@@ -5,6 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
+
 	"orderservice/config"
 	handler "orderservice/internal/api"
 	"orderservice/internal/cache"
@@ -13,19 +19,14 @@ import (
 	"orderservice/internal/repository"
 	"orderservice/internal/service"
 	"orderservice/internal/web"
-	"os"
-	"os/signal"
-	"sync"
-	"syscall"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 )
 
 func main() {
-	config := config.GetConfig()
-	fmt.Println(config)
-	db := db.ConnectPostgres(config.DSN)
+	startConfig := config.GetConfig()
+	fmt.Println(startConfig)
+	db := db.ConnectPostgres(startConfig.DSN)
 
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -33,7 +34,7 @@ func main() {
 	}
 	defer sqlDB.Close()
 
-	repo := repository.NewOrderRepository(db, config.DSN)
+	repo := repository.NewOrderRepository(db, startConfig.DSN)
 	orderMap, err := cache.CreateAndWarmUpOrderCache(repo)
 	if err != nil {
 		log.Fatalf("Failed to load cache: %v", err)
@@ -47,18 +48,19 @@ func main() {
 	r.Get("/order/{uid}", orderHandler.GetOrderInfo)
 	r.Get("/order/", orderHandler.GetOrderInfo)
 	srv := http.Server{
-		Addr:         (":" + config.AppPort),
+		Addr:         ":" + startConfig.AppPort,
 		Handler:      r,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  120 * time.Second}
+		IdleTimeout:  120 * time.Second,
+	}
 
 	wg := sync.WaitGroup{}
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		fmt.Printf("Server running on http://localhost:%s\n", config.AppPort)
+		fmt.Printf("Server running on http://localhost:%s\n", startConfig.AppPort)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server stopped: %v", err)
 		}
@@ -67,18 +69,18 @@ func main() {
 
 	web.LoadTemplates()
 
-	kafka.WaitKafkaReady(config.KafkaBroker)
+	kafka.WaitKafkaReady(startConfig.KafkaBroker)
 
 	ctx, kafkaCancel := context.WithCancel(context.Background())
 	wg.Add(1)
-	go kafka.StartConsumer(ctx, orderHandler.Service, config.KafkaBroker, config.Topic, &wg)
+	go kafka.StartConsumer(ctx, orderHandler.Service, startConfig.KafkaBroker, startConfig.Topic, &wg)
 	time.Sleep(3 * time.Second)
 
-	if config.LaunchMockGenerator {
-		go kafka.EmulateMsgSending(config.KafkaBroker, config.Topic)
+	if startConfig.LaunchMockGenerator {
+		go kafka.EmulateMsgSending(startConfig.KafkaBroker, startConfig.Topic)
 	}
 
-	//Starting shutdown signal listener
+	// Starting shutdown signal listener
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 	defer close(sig)
@@ -89,10 +91,10 @@ func main() {
 		defer wg.Done()
 		<-sig
 		log.Println("Interrupt received!!! Starting shutdown sequence...")
-		//stop Kafka consumer:
+		// stop Kafka consumer:
 		kafkaCancel()
 		log.Println("Kafka consumer stopping...")
-		//5 seconds to stop HTTP-server:
+		// 5 seconds to stop HTTP-server:
 		ctx, httpCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer httpCancel()
 		if err := srv.Shutdown(ctx); err != nil {
