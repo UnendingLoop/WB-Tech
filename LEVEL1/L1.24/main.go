@@ -30,11 +30,11 @@ func NewPoint(x, y float64) Point {
 }
 
 func main() {
-	//проверим работу на пифагоровой тройке
+	// проверим работу на пифагоровой тройке 3-4-5
 	point0 := NewPoint(0, 0)
 	point1 := NewPoint(0, 3)
 	point2 := NewPoint(4, 0)
-	fmt.Println("Расстояние от 0-вой точки до (0,3):", point0.Distance(point1))
-	fmt.Println("Расстояние от 0-вой точки до (0,4):", point0.Distance(point2))
-	fmt.Println("Расстояние от (0,4) до (0,3) (ожидаем 5):", point1.Distance(point2))
+	fmt.Println("Расстояние от 0-вой точки до (0;3):", point0.Distance(point1))
+	fmt.Println("Расстояние от 0-вой точки до (4;0):", point0.Distance(point2))
+	fmt.Println("Расстояние от (4;0) до (0;3) (ожидаем 5):", point1.Distance(point2))
 }

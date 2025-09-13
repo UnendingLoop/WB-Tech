@@ -14,7 +14,8 @@ import (
 func main() {
 	wg := sync.WaitGroup{}
 	channel := make(chan int)
-	ctx, _ := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
 
 	wg.Add(1)
 	go producer(ctx, channel, &wg)
@@ -23,7 +24,6 @@ func main() {
 
 	wg.Wait()
 	fmt.Println("Exiting the program. Bye!")
-
 }
 
 // Producer
