@@ -10,41 +10,40 @@ import (
 	"sortClone/internal/utils"
 )
 
-var dictMonths = map[string]string{"Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06", "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"}
+var DictMonths = map[string]string{"Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06", "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"}
 
 // Sort - sorts input data according to flags fetched from cmd; returns sorted lines
-func Sort(lines []string, opts model.Options) []string {
-	sort.Slice(lines, UniversalComparator(opts, lines))
+func Sort(lines []string) []string {
+	sort.Slice(lines, UniversalComparator(lines))
 	// если есть флаг u, сразу убираем дубликаты; работает по колонке из k если он указан
-	if opts.Unique {
-		lines = utils.UniqueLines(lines, opts)
+	if model.OptsContainer.Unique {
+		lines = utils.UniqueLines(lines)
 	}
 	return lines
 }
 
 // UniversalComparator - is a comparing function for sorting
-func UniversalComparator(opts model.Options, lines []string) func(i, j int) bool {
+func UniversalComparator(lines []string) func(i, j int) bool {
 	return func(i, j int) bool {
-		a, b := utils.GetKey(lines[i], opts.Column, opts.Delimeter), utils.GetKey(lines[j], opts.Column, opts.Delimeter)
-
+		a, b := utils.GetKey(lines[i]), utils.GetKey(lines[j])
 		// если есть флаг b, убираем хвостовые пробелы
-		if opts.IgnSpaces {
+		if model.OptsContainer.IgnSpaces {
 			a, b = utils.RemoveTrailBlanks(a, b)
 		}
 
 		// парсим кило/мега/гига-байты
-		if opts.HumanSort {
+		if model.OptsContainer.HumanSort {
 			ah, err0 := utils.ParseHumanSize(a)
 			bh, err1 := utils.ParseHumanSize(b)
 
 			humanResult := utils.SmallComparator(a, b, ah, bh, err0, err1)
-			return applyReverse(humanResult, opts.Reverse)
+			return ApplyReverse(humanResult, model.OptsContainer.Reverse)
 		}
 
 		// парсим месяцы; если месяц не определился - используем исходную строку и приоритет отдаем месяцу
-		if opts.Monthly {
-			am, oka := dictMonths[a]
-			bm, okb := dictMonths[b]
+		if model.OptsContainer.Monthly {
+			am, oka := DictMonths[a]
+			bm, okb := DictMonths[b]
 			var errA, errB error
 			if !oka {
 				errA = errors.New("invalid month")
@@ -53,26 +52,26 @@ func UniversalComparator(opts model.Options, lines []string) func(i, j int) bool
 				errB = errors.New("invalid month")
 			}
 			monthlyResult := utils.SmallComparator(a, b, am, bm, errA, errB)
-			return applyReverse(monthlyResult, opts.Reverse)
+			return ApplyReverse(monthlyResult, model.OptsContainer.Reverse)
 		}
 
 		// парсим строки в число
-		if opts.Numeric {
+		if model.OptsContainer.Numeric {
 			ai, err2 := strconv.Atoi(a)
 			bi, err3 := strconv.Atoi(b)
 
 			numResult := utils.SmallComparator(a, b, ai, bi, err2, err3)
-			return applyReverse(numResult, opts.Reverse)
+			return ApplyReverse(numResult, model.OptsContainer.Reverse)
 		}
 
-		if opts.Reverse {
+		if model.OptsContainer.Reverse {
 			return b < a
 		}
 		return a < b
 	}
 }
 
-func applyReverse(result, toReverse bool) bool {
+func ApplyReverse(result, toReverse bool) bool {
 	if toReverse {
 		return !result
 	}

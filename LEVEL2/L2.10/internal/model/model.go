@@ -1,3 +1,4 @@
+// Package model provides a struct for storing parsed flags
 package model
 
 // Options - struct for storing all possible flags used for launching the 'sortClone'
@@ -13,3 +14,5 @@ type Options struct {
 	HumanSort     bool   // done
 	WriteToFile   string // done
 }
+
+var OptsContainer = Options{}

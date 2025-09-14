@@ -10,8 +10,9 @@ import (
 func TestSortBasic(t *testing.T) {
 	lines := []string{"banana", "apple", "cherry"}
 	expected := []string{"apple", "banana", "cherry"}
-
-	got := Sort(lines, model.Options{})
+	opts := model.Options{}
+	model.OptsContainer = opts
+	got := Sort(lines)
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("Sort() = %v, want %v", got, expected)
 	}
@@ -20,8 +21,9 @@ func TestSortBasic(t *testing.T) {
 func TestSortNumeric(t *testing.T) {
 	lines := []string{"10", "2", "1", "20"}
 	expected := []string{"1", "2", "10", "20"}
-
-	got := Sort(lines, model.Options{Numeric: true})
+	opts := model.Options{Numeric: true}
+	model.OptsContainer = opts
+	got := Sort(lines)
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("Sort(Numeric) = %v, want %v", got, expected)
 	}
@@ -30,8 +32,9 @@ func TestSortNumeric(t *testing.T) {
 func TestSortNumericDelimeterColumn(t *testing.T) {
 	lines := []string{"10;4", "2;3", "1;1", "20;2"}
 	expected := []string{"1;1", "20;2", "2;3", "10;4"}
-
-	got := Sort(lines, model.Options{Numeric: true, Delimeter: ";", Column: 2})
+	opts := model.Options{Numeric: true, Delimeter: ";", Column: 2}
+	model.OptsContainer = opts
+	got := Sort(lines)
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("Sort(NumericDelimeterColumn) = %v, want %v", got, expected)
 	}
@@ -40,8 +43,9 @@ func TestSortNumericDelimeterColumn(t *testing.T) {
 func TestSortReverse(t *testing.T) {
 	lines := []string{"a", "b", "c"}
 	expected := []string{"c", "b", "a"}
-
-	got := Sort(lines, model.Options{Reverse: true})
+	opts := model.Options{Reverse: true}
+	model.OptsContainer = opts
+	got := Sort(lines)
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("Sort(Reverse) = %v, want %v", got, expected)
 	}
@@ -50,8 +54,9 @@ func TestSortReverse(t *testing.T) {
 func TestSortMonthly(t *testing.T) {
 	lines := []string{"Mar", "Jan", "Dec"}
 	expected := []string{"Jan", "Mar", "Dec"}
-
-	got := Sort(lines, model.Options{Monthly: true})
+	opts := model.Options{Monthly: true}
+	model.OptsContainer = opts
+	got := Sort(lines)
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("Sort(Monthly) = %v, want %v", got, expected)
 	}
@@ -60,8 +65,9 @@ func TestSortMonthly(t *testing.T) {
 func TestSortHuman(t *testing.T) {
 	lines := []string{"1K", "2M", "512", "3G"}
 	expected := []string{"512", "1K", "2M", "3G"}
-
-	got := Sort(lines, model.Options{HumanSort: true})
+	opts := model.Options{HumanSort: true}
+	model.OptsContainer = opts
+	got := Sort(lines)
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("Sort(Human) = %v, want %v", got, expected)
 	}
@@ -78,8 +84,9 @@ func TestSortColumn(t *testing.T) {
 		"cherry 5",
 		"apple 10",
 	}
-
-	got := Sort(lines, model.Options{Column: 2, Numeric: true})
+	opts := model.Options{Column: 2, Numeric: true}
+	model.OptsContainer = opts
+	got := Sort(lines)
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("Sort(Column+Numeric) = %v, want %v", got, expected)
 	}
@@ -88,8 +95,9 @@ func TestSortColumn(t *testing.T) {
 func TestSortIgnoreSpaces(t *testing.T) {
 	lines := []string{"apple  ", "banana", "cherry "}
 	expected := []string{"apple  ", "banana", "cherry "}
-
-	got := Sort(lines, model.Options{IgnSpaces: true})
+	opts := model.Options{IgnSpaces: true}
+	model.OptsContainer = opts
+	got := Sort(lines)
 	// просто проверяем, что порядок сортировки корректный
 	if got[0] != "apple  " || got[1] != "banana" || got[2] != "cherry " {
 		t.Errorf("Sort(IgnSpaces) = %v, want %v", got, expected)
@@ -107,8 +115,9 @@ func TestSortReverseNumericColumn(t *testing.T) {
 		"c 2",
 		"a 1",
 	}
-
-	got := Sort(lines, model.Options{Column: 2, Numeric: true, Reverse: true, Delimeter: " "})
+	opts := model.Options{Column: 2, Numeric: true, Reverse: true, Delimeter: " "}
+	model.OptsContainer = opts
+	got := Sort(lines)
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("Sort(Column+Numeric+Reverse) = %v, want %v", got, expected)
 	}
@@ -123,8 +132,9 @@ func TestSortUnique(t *testing.T) {
 		"b",
 	}
 	expected := []string{"a", "b", "c"}
-
-	got := Sort(lines, model.Options{Unique: true})
+	opts := model.Options{Unique: true}
+	model.OptsContainer = opts
+	got := Sort(lines)
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("Sort(Unique) = %v, want %v", got, expected)
 	}
@@ -143,8 +153,7 @@ func TestSortAllFlags(t *testing.T) {
 		"Mar 2K",
 		"Jan 2M",
 	}
-
-	got := Sort(lines, model.Options{
+	opts := model.Options{
 		Column:    2,
 		Numeric:   false,
 		Reverse:   false,
@@ -153,7 +162,9 @@ func TestSortAllFlags(t *testing.T) {
 		HumanSort: true,
 		IgnSpaces: false,
 		Delimeter: " ",
-	})
+	}
+	model.OptsContainer = opts
+	got := Sort(lines)
 	if !reflect.DeepEqual(got, expected) {
 		t.Errorf("Sort(AllFlags) = %v, want %v", got, expected)
 	}

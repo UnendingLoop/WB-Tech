@@ -10,24 +10,24 @@ import (
 func TestGetKey(t *testing.T) {
 	tests := []struct {
 		line     string
-		column   int
-		delim    string
+		opts     model.Options
 		expected string
 	}{
-		{"a b c", 1, " ", "a"},
-		{"a b c", 2, " ", "b"},
-		{"a b c", 3, " ", "c"},
-		{"a b c", 4, " ", "a b c"}, // колонка вне диапазона
-		{"x,y,z", 2, ",", "y"},
-		{"no-delim", 1, ",", "no-delim"},
-		{"no-delim", 2, ",", "no-delim"},
+		{"a b c", model.Options{Column: 1, Delimeter: " "}, "a"},
+		{"a b c", model.Options{Column: 2, Delimeter: " "}, "b"},
+		{"a b c", model.Options{Column: 3, Delimeter: " "}, "c"},
+		{"a b c", model.Options{Column: 4, Delimeter: " "}, "a b c"}, // колонка вне диапазона
+		{"x,y,z", model.Options{Column: 2, Delimeter: ","}, "y"},
+		{"no-delim", model.Options{Column: 1, Delimeter: ","}, "no-delim"},
+		{"no-delim", model.Options{Column: 2, Delimeter: ","}, "no-delim"},
 	}
 
 	for _, tt := range tests {
-		got := GetKey(tt.line, tt.column, tt.delim)
+		model.OptsContainer = tt.opts
+		got := GetKey(tt.line)
 		if got != tt.expected {
-			t.Errorf("GetKey(%q, %d, %q) = %q, want %q",
-				tt.line, tt.column, tt.delim, got, tt.expected)
+			t.Errorf("GetKey(%q) with options(%v) = %q, want %q",
+				tt.line, tt.opts, got, tt.expected)
 		}
 	}
 }
@@ -41,7 +41,8 @@ func TestUniqueLines(t *testing.T) {
 		"cherry 5",
 	}
 	opts := model.Options{Column: 1, Delimeter: " "}
-	got := UniqueLines(lines, opts)
+	model.OptsContainer = opts
+	got := UniqueLines(lines)
 
 	expected := []string{"apple 1", "banana 2", "cherry 5"}
 	if len(got) != len(expected) {
