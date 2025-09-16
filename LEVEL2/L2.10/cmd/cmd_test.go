@@ -23,7 +23,7 @@ func TestExecuteSort_LinesMemory(t *testing.T) {
 	model.OptsContainer.Unique = false
 
 	// Выполнение сортировки
-	if err := executeSort(nil, nil); err != nil {
+	if err := ExecuteSort(nil, nil); err != nil {
 		t.Fatalf("executeSort returned error: %v", err)
 	}
 
@@ -47,7 +47,7 @@ func TestExecuteSort_Unique(t *testing.T) {
 	model.OptsContainer.WriteToFile = ""
 	model.OptsContainer.Unique = true
 
-	if err := executeSort(nil, nil); err != nil {
+	if err := ExecuteSort(nil, nil); err != nil {
 		t.Fatalf("executeSort returned error: %v", err)
 	}
 
@@ -61,7 +61,10 @@ func TestExecuteSort_Unique(t *testing.T) {
 // Тест сортировки временных файлов
 func TestExecuteSort_TmpFiles(t *testing.T) {
 	// Создание временной директории и файлов
-	os.MkdirAll("testdata", 0o755)
+	err := os.MkdirAll("testdata", 0o755)
+	if err != nil {
+		t.Errorf("Failed to create folder: %v", err)
+	}
 	defer os.RemoveAll("testdata")
 
 	file1, err := os.CreateTemp("", "tmp1-*.txt")
@@ -76,10 +79,23 @@ func TestExecuteSort_TmpFiles(t *testing.T) {
 	}
 	defer os.Remove(file2.Name())
 
-	os.WriteFile(file1.Name(), []byte("C\nB\nA\n"), 0o644)
-	os.WriteFile(file2.Name(), []byte("F\nE\nD\n"), 0o644)
-	file1.Close()
-	file2.Close()
+	err = os.WriteFile(file1.Name(), []byte("C\nB\nA\n"), 0o644)
+	if err != nil {
+		t.Errorf("Failed to write to file1 %q: %v", file1.Name(), err)
+	}
+	err = os.WriteFile(file2.Name(), []byte("F\nE\nD\n"), 0o644)
+	if err != nil {
+		t.Errorf("Failed to write to file2 %q: %v", file2.Name(), err)
+	}
+
+	err = file1.Close()
+	if err != nil {
+		t.Errorf("Failed to close file1: %v", err)
+	}
+	err = file2.Close()
+	if err != nil {
+		t.Errorf("Failed to close file2: %v", err)
+	}
 	tmpFiles := []string{file1.Name(), file2.Name()}
 	ReadInputFunc = func(args []string) ([]string, []string, error) {
 		return nil, tmpFiles, nil
@@ -90,7 +106,7 @@ func TestExecuteSort_TmpFiles(t *testing.T) {
 	model.OptsContainer.WriteToFile = ""
 	model.OptsContainer.Unique = false
 
-	if err := executeSort(nil, nil); err != nil {
+	if err := ExecuteSort(nil, nil); err != nil {
 		t.Fatalf("executeSort returned error: %v", err)
 	}
 

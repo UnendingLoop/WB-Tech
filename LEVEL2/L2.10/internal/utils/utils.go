@@ -12,15 +12,23 @@ import (
 	"sortClone/internal/model"
 )
 
-var multipliers = map[string]float64{
-	"K": 1024,
-	"M": 1024 * 1024,
-	"G": 1024 * 1024 * 1024,
-	"T": 1024 * 1024 * 1024 * 1024,
-	"К": 1024,
-	"М": 1024 * 1024,
-	"Г": 1024 * 1024 * 1024,
-	"Т": 1024 * 1024 * 1024 * 1024,
+var Multipliers = map[string]float64{
+	"K":  1024,
+	"Kb": 1024,
+	"M":  1024 * 1024,
+	"Mb": 1024 * 1024,
+	"G":  1024 * 1024 * 1024,
+	"Gb": 1024 * 1024 * 1024,
+	"T":  1024 * 1024 * 1024 * 1024,
+	"Tb": 1024 * 1024 * 1024 * 1024,
+	"К":  1024,
+	"Кб": 1024,
+	"М":  1024 * 1024,
+	"Мб": 1024 * 1024,
+	"Г":  1024 * 1024 * 1024,
+	"Гб": 1024 * 1024 * 1024,
+	"Т":  1024 * 1024 * 1024 * 1024,
+	"Тб": 1024 * 1024 * 1024 * 1024,
 }
 
 // GetKey - returns value from the specified column of input line using specified delimeter
@@ -30,6 +38,7 @@ func GetKey(line string) string {
 	}
 
 	parts := strings.Split(line, model.OptsContainer.Delimeter)
+
 	if model.OptsContainer.Column-1 > len(parts) {
 		return line
 	}
@@ -86,7 +95,7 @@ func ParseHumanSize(s string) (float64, error) {
 		return 0, err
 	}
 
-	if mul, ok := multipliers[unitPart]; ok {
+	if mul, ok := Multipliers[unitPart]; ok {
 		value *= mul
 	}
 

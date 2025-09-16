@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const maxFileSize int64 = 1024 * 1024 * 100
+const MaxFileSize int64 = 1024 * 1024 * 100
 
 // ReadInput - reads input data that needs to be sorted whether it is a file or raw lines.
 // Divides input file into tmp-smallfiles if it is too big
@@ -29,7 +29,7 @@ func ReadInput(args []string) ([]string, []string, error) {
 			return nil, nil, errors.New("couldn't open specified input file")
 		}
 		// если размер файла более 100Мб - дробим на временные файлы
-		if info.Size() > maxFileSize {
+		if info.Size() > MaxFileSize {
 			files, err := divideBigFile(args[0])
 			return nil, files, err
 		}
@@ -77,7 +77,7 @@ func divideBigFile(filename string) ([]string, error) {
 	for scanner.Scan() {
 		line = scanner.Text() + "\n"
 		chunk.WriteString(line)
-		if chunk.Len() >= int(maxFileSize) {
+		if chunk.Len() >= int(MaxFileSize) {
 			tmpName, err := writeToTMP(chunk.String())
 			if err != nil {
 				return nil, err

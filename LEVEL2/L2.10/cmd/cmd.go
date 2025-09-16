@@ -20,12 +20,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var rootCmd = &cobra.Command{
+var cobraFlagParser = &cobra.Command{
 	Use:   "sortClone [flags] [filename/rawLines]",
 	Short: "sortClone — аналог UNIX-утилиты sort",
-	RunE:  executeSort,
+	RunE:  ExecuteSort,
 }
 
+// чтобы тесты проводить вводим подменяемые переменные:
 var (
 	ReadInputFunc = reader.ReadInput
 	OutputDST     io.Writer
@@ -33,19 +34,19 @@ var (
 
 // определяем флаги и помещаем в контейнер
 func init() {
-	rootCmd.Flags().IntVarP(&model.OptsContainer.Column, "key", "k", 0, "Сортировать по указанному номеру колонки/столбца в строке. По умолчанию '0' - работа с целой строкой")
-	rootCmd.Flags().BoolVarP(&model.OptsContainer.Numeric, "numeric", "n", false, "Сортировать по числам")
-	rootCmd.Flags().BoolVarP(&model.OptsContainer.Reverse, "reverse", "r", false, "Сортировать в обратном порядке")
-	rootCmd.Flags().BoolVarP(&model.OptsContainer.Unique, "unique", "u", false, "Выводить только уникальные строки")
-	rootCmd.Flags().StringVarP(&model.OptsContainer.Delimeter, "delimeter", "d", "\t", "Указать разделитель колонок")
-	rootCmd.Flags().BoolVarP(&model.OptsContainer.Monthly, "monthly", "M", false, "Сортировать по месяцам")
-	rootCmd.Flags().BoolVarP(&model.OptsContainer.IgnSpaces, "blanks", "b", false, "Игнорировать хвостовые пробелы")
-	rootCmd.Flags().BoolVarP(&model.OptsContainer.CheckIfSorted, "check", "c", false, "Проверка отсортированности")
-	rootCmd.Flags().BoolVarP(&model.OptsContainer.HumanSort, "human", "H", false, "Человекочитаемая сортировка - поддержка суффиксов Тб,Гб,Мб,Кб")
-	rootCmd.Flags().StringVarP(&model.OptsContainer.WriteToFile, "write2file", "w", "", "Запись результата сортировки в новый файл с указанным названием")
+	cobraFlagParser.Flags().IntVarP(&model.OptsContainer.Column, "key", "k", 0, "Сортировать по указанному номеру колонки/столбца в строке. По умолчанию '0' - работа с целой строкой")
+	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.Numeric, "numeric", "n", false, "Сортировать по числам")
+	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.Reverse, "reverse", "r", false, "Сортировать в обратном порядке")
+	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.Unique, "unique", "u", false, "Выводить только уникальные строки")
+	cobraFlagParser.Flags().StringVarP(&model.OptsContainer.Delimeter, "delimeter", "d", "\t", "Указать разделитель колонок")
+	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.Monthly, "monthly", "M", false, "Сортировать по месяцам")
+	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.IgnSpaces, "blanks", "b", false, "Игнорировать хвостовые пробелы")
+	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.CheckIfSorted, "check", "c", false, "Проверка отсортированности")
+	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.HumanSort, "human", "H", false, "Человекочитаемая сортировка - поддержка суффиксов T/Тб,Г/Гб,М/Мб,К/Кб в лат./кир.")
+	cobraFlagParser.Flags().StringVarP(&model.OptsContainer.WriteToFile, "write2file", "w", "", "Запись результата сортировки в новый файл с указанным названием")
 }
 
-func executeSort(cmd *cobra.Command, args []string) error {
+func ExecuteSort(cmd *cobra.Command, args []string) error {
 	// определяем что подано на вход для обработки
 	lines, filesArray, err := ReadInputFunc(args)
 
@@ -100,6 +101,10 @@ func linesOutput(lines []string) error {
 				OutputDST = os.Stdout
 			}
 		}
+	} else {
+		if OutputDST == nil {
+			OutputDST = os.Stdout
+		}
 	}
 	// обработка результата - или вывод на экран, или запись в файл
 	for _, line := range lines {
@@ -135,7 +140,7 @@ func mergeTmpFiles(tmpfiles []string) error {
 	for i, fileName := range tmpfiles {
 		tmpFile, err := os.Open(fileName)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to open tmp-file %q for merging: %v", fileName, err)
 		}
 		tmpFiles[i] = tmpFile
 		scanner := bufio.NewScanner(tmpFile)
@@ -146,8 +151,15 @@ func mergeTmpFiles(tmpfiles []string) error {
 		}
 	}
 	defer func() {
+		// закрываем все временные файлы
 		for _, f := range tmpFiles {
-			f.Close()
+			if err := f.Close(); err != nil {
+				log.Fatalf("Failed to close tmp-file %q after merging: %v", f.Name(), err)
+			}
+		}
+		// удаляем их
+		if err := os.RemoveAll("tmp"); err != nil {
+			log.Fatalf("Failed to remove tmp-directory: %v", err)
 		}
 	}()
 
@@ -165,8 +177,11 @@ func mergeTmpFiles(tmpfiles []string) error {
 				OutputDST = os.Stdout
 			}
 		}
+	} else {
+		if OutputDST == nil {
+			OutputDST = os.Stdout
+		}
 	}
-
 	// Достаем из кучи элементы
 	lastWritten := ""
 	for tmpHeap.Len() > 0 {
@@ -186,7 +201,6 @@ func mergeTmpFiles(tmpfiles []string) error {
 
 		if scanners[item.FileID].Scan() {
 			heap.Push(&tmpHeap, &heaper.FileLine{Value: scanners[item.FileID].Text(), FileID: item.FileID})
-			log.Printf("Значение пуше в кучу: %s", scanners[item.FileID].Text())
 		}
 		lastWritten = item.Value
 	}
@@ -196,16 +210,13 @@ func mergeTmpFiles(tmpfiles []string) error {
 			return err
 		}
 	}
-	// удаляем временные файлы
-	if err := os.RemoveAll("tmp"); err != nil {
-		return err
-	}
 
 	return nil
 }
 
 func preprocessArgs() {
 	var args []string
+	fmt.Println("OS Args:", os.Args)
 	for _, arg := range os.Args {
 		if strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") && len(arg) > 2 {
 			// разбиваем группированые флаги если есть
@@ -222,7 +233,7 @@ func preprocessArgs() {
 // Execute - reads flags and launches sort function with flags
 func Execute() {
 	preprocessArgs()
-	if err := rootCmd.Execute(); err != nil {
+	if err := cobraFlagParser.Execute(); err != nil {
 		os.Exit(1)
 	}
 }
