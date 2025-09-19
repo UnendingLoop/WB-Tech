@@ -42,8 +42,8 @@ func UniversalComparator(lines []string) func(i, j int) bool {
 
 		// парсим месяцы; если месяц не определился - используем исходную строку и приоритет отдаем месяцу
 		if model.OptsContainer.Monthly {
-			am, oka := DictMonths[a]
-			bm, okb := DictMonths[b]
+			am, oka := DictMonths[a[:3]]
+			bm, okb := DictMonths[b[:3]]
 			var errA, errB error
 			if !oka {
 				errA = errors.New("invalid month")

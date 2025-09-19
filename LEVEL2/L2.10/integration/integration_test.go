@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package integration
 
 import (
@@ -201,6 +204,55 @@ func TestBigFileNumericReverseSortFirstColumn(t *testing.T) {
 	}
 }
 
+func TestCFlag(t *testing.T) {
+	argsCases := [][]string{
+		{
+			os.Args[0],
+			"-nck",
+			"1",
+			smallFilePath,
+		}, {
+			os.Args[0],
+			"-nrck",
+			"1",
+			smallFilePath,
+		},
+	}
+	result := make([]string, 0, 2)
+
+	// запускаем тесты
+	var buf bytes.Buffer
+	for _, testCase := range argsCases {
+		model.OptsContainer.Reverse = false
+		os.Args = testCase
+		// перехватываем вывод
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatalf("Failed to create stdout-listener: %v", err)
+		}
+		origStdOut := os.Stdout
+		os.Stdout = w
+
+		// вызываем сортировку
+		cmd.Execute()
+		w.Close()
+		os.Stdout = origStdOut
+
+		// читаем вывод
+		buf.ReadFrom(r)
+		r.Close()
+		result = append(result, strings.TrimSpace(buf.String()))
+		buf.Reset()
+	}
+
+	// подводим итоги
+	if result[1] != cmd.IsNotSortedMessage || result[0] != cmd.IsSortedMessage {
+		t.Logf("Expected: \n1) %q\n2) %q\n", cmd.IsSortedMessage, cmd.IsNotSortedMessage)
+		t.Logf("Actual: \n1) %q\n2) %q\n", result[0], result[1])
+		t.Fatalf("Discrepancy in fetched results!")
+	}
+}
+
 func TestMain(m *testing.M) {
 	// генерим тестовый файл с мокамии
 	err := prepareTestFiles()
@@ -227,6 +279,7 @@ func TestMain(m *testing.M) {
 			os.Exit(1)
 		}
 	}
+	// добавить удаление временной папки!
 
 	os.Exit(code)
 }

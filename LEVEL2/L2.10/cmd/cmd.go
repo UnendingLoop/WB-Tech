@@ -28,8 +28,10 @@ var cobraFlagParser = &cobra.Command{
 
 // чтобы тесты проводить вводим подменяемые переменные:
 var (
-	ReadInputFunc = reader.ReadInput
-	OutputDST     io.Writer
+	ReadInputFunc      = reader.ReadInput
+	OutputDST          io.Writer
+	IsSortedMessage    = "Входные данные уже отсортированы."
+	IsNotSortedMessage = "Входные данные несортированы."
 )
 
 // определяем флаги и помещаем в контейнер
@@ -56,8 +58,17 @@ func ExecuteSort(cmd *cobra.Command, args []string) error {
 	}
 
 	// ветка работы с множеством tmp-файлов
-	if filesArray != nil {
+	if filesArray != nil && !model.OptsContainer.CheckIfSorted {
 		return processTmpFiles(filesArray)
+	}
+	// ветка работы с множеством tmp-файлов и флагом -с
+	if filesArray != nil && model.OptsContainer.CheckIfSorted {
+		result, err := checkTmpFiles(filesArray)
+		if err != nil {
+			return err
+		}
+		fmt.Println(result)
+		return nil
 	}
 
 	return err
@@ -72,10 +83,10 @@ func sortLines(lines []string) []string {
 	if model.OptsContainer.CheckIfSorted {
 		result := sort.SliceIsSorted(lines, sorter.UniversalComparator(lines))
 		if result {
-			fmt.Println("Входные данные уже отсортированы.")
+			fmt.Println(IsSortedMessage)
 			return nil
 		}
-		fmt.Println("Входные данные несортированы.")
+		fmt.Println(IsNotSortedMessage)
 		return nil
 	}
 
@@ -129,6 +140,31 @@ func processTmpFiles(tmpfiles []string) error {
 	}
 	// вызов мерджера временных файлов
 	return mergeTmpFiles(tmpfiles)
+}
+
+func checkTmpFiles(tmpfiles []string) (string, error) {
+	// проверяем все временные файлы в потоке по очереди
+	lastline := ""
+	started := false
+	for _, tmpName := range tmpfiles {
+		tmpLines, err := utils.ReadFileToRAM(tmpName)
+		if err != nil {
+			return "", err
+		}
+		for _, line := range tmpLines {
+			if !started {
+				lastline = line
+				started = true
+				continue
+			}
+			result := sort.SliceIsSorted([]string{lastline, line}, sorter.UniversalComparator([]string{lastline, line}))
+			if !result {
+				return IsNotSortedMessage, nil
+			}
+			lastline = line
+		}
+	}
+	return IsSortedMessage, nil
 }
 
 func mergeTmpFiles(tmpfiles []string) error {
@@ -232,8 +268,6 @@ func preprocessArgs() {
 // Execute - reads flags and launches sort function with flags
 func Execute() {
 	preprocessArgs()
-	// cobraFlagParser.PersistentFlags().BoolP("help", "H", false, "")
-	// cobraFlagParser.Flags().BoolP("help", "H", false, "")
 	if err := cobraFlagParser.Execute(); err != nil {
 		os.Exit(1)
 	}

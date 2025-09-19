@@ -63,6 +63,9 @@ func UniqueLines(lines []string) []string {
 			}
 			column = strconv.FormatFloat(parsedLine, 'f', -1, 64)
 		}
+		if model.OptsContainer.Monthly {
+			column = column[:3]
+		}
 
 		if _, ok := seen[column]; !ok {
 			seen[column] = struct{}{}
