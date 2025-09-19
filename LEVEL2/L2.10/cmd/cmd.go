@@ -43,7 +43,7 @@ func init() {
 	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.IgnSpaces, "blanks", "b", false, "Игнорировать хвостовые пробелы")
 	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.CheckIfSorted, "check", "c", false, "Проверка отсортированности")
 	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.HumanSort, "human", "H", false, "Человекочитаемая сортировка - поддержка суффиксов T/Тб,Г/Гб,М/Мб,К/Кб в лат./кир.")
-	cobraFlagParser.Flags().StringVarP(&model.OptsContainer.WriteToFile, "write2file", "w", "", "Запись результата сортировки в новый файл с указанным названием")
+	cobraFlagParser.Flags().StringVarP(&model.OptsContainer.WriteToFile, "output to file", "o", "", "Запись результата сортировки в новый файл с указанным названием")
 }
 
 func ExecuteSort(cmd *cobra.Command, args []string) error {
@@ -216,7 +216,6 @@ func mergeTmpFiles(tmpfiles []string) error {
 
 func preprocessArgs() {
 	var args []string
-	fmt.Println("OS Args:", os.Args)
 	for _, arg := range os.Args {
 		if strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") && len(arg) > 2 {
 			// разбиваем группированые флаги если есть
@@ -233,6 +232,8 @@ func preprocessArgs() {
 // Execute - reads flags and launches sort function with flags
 func Execute() {
 	preprocessArgs()
+	// cobraFlagParser.PersistentFlags().BoolP("help", "H", false, "")
+	// cobraFlagParser.Flags().BoolP("help", "H", false, "")
 	if err := cobraFlagParser.Execute(); err != nil {
 		os.Exit(1)
 	}

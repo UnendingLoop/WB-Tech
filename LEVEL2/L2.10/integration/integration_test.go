@@ -1,16 +1,19 @@
-package cmd
+package integration
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"log"
 	"math/rand"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"sortClone/cmd"
 	"sortClone/internal/model"
 	"sortClone/internal/reader"
 	"sortClone/internal/utils"
@@ -21,16 +24,128 @@ var (
 	bigFileLinesCount   int64
 	bigFileSize         int64
 	smallFilePath       string
-	smallFileLinesCount int64 = 1000
+	smallFileLinesCount int64 = 1000 // кол-во строк для малого тестового файла
 	smallFileSize       int64
 	first10linesBigFile = []string{}
 	first10linesSorted  = []string{}
+	dstFileName         string
 )
 
-func TestStdIn(t *testing.T) {
+func TestStdInGroupedFlagsHumanSort(t *testing.T) {
+	os.Args = []string{
+		os.Args[0],
+		"-ruHk", // группируем флаги
+		"2",
+	}
+
+	input := "000\t1Tb\n000\t1Тб\n111\t1Tb\n222\t1Гб\n333\t1Mb\n444\t1Кб\n555\t1К\n666\t\n000\t1Тб\n777\t\n"
+	expOutput := "000\t1Тб\n222\t1Гб\n333\t1Mb\n555\t1К\n777\t\n"
+
+	// подменяем стдин
+	oldStdin := os.Stdin                   // сохраняем оригинал
+	defer func() { os.Stdin = oldStdin }() // восстанавливаем при окончании работы
+
+	r, w, _ := os.Pipe()
+	_, _ = w.Write([]byte(input))
+	_ = w.Close()
+	os.Stdin = r // подменяем stdin
+
+	// перехватываем вывод
+	buf := &bytes.Buffer{}
+	cmd.OutputDST = buf
+	defer func() { cmd.OutputDST = nil }()
+
+	// выполняем саму сортировку с отсчетом времени
+	start := time.Now()
+	cmd.Execute()
+	end := time.Since(start)
+
+	// подводим итоги
+	t.Logf("Running ExecuteSort took %vmsec.", end.Milliseconds())
+	t.Logf("Generated testfile size: %vmb", bigFileSize/1024/1024)
+
+	if buf.String() != expOutput {
+		t.Logf("Expected output is:\n %v", expOutput)
+		t.Logf("Actual output is:\n %v", buf.String())
+		t.Fatalf("Output is not sorted!")
+	}
+}
+
+// тут сделать вывод в файл
+func TestSmallFile(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "TestTMPdir-*")
+	if err != nil {
+		t.Logf("Failed to pre-create TMP dir: %v", err)
+	}
+
+	dstFileName = path.Join(tmpDir, "testTMPresult.txt")
+
+	os.Args = []string{
+		os.Args[0],
+		"-rn",
+		"-k",
+		"1",
+		"-o",
+		dstFileName,
+		smallFilePath,
+	}
+
+	// выполняем саму сортировку с отсчетом времени
+	start := time.Now()
+	cmd.Execute()
+	end := time.Since(start)
+
+	// Cравниваем результаты
+	sizeOK, linesOK := true, true
+
+	destFile, errf := os.Open(dstFileName)
+	defer func() {
+		err := destFile.Close()
+		if err != nil {
+			t.Logf("Failed to close output file: %v", err)
+		}
+	}()
+
+	if errf != nil {
+		t.Fatalf("Failed to open DST file after sorting: %v", errf)
+	}
+
+	destInfo, erri := destFile.Stat()
+	if erri != nil {
+		t.Fatalf("Failed to fetch DST file info after opening: %v", erri)
+	}
+
+	if destInfo.Size() != smallFileSize {
+		sizeOK = false
+	}
+
+	// считаем кол-во строк в выходном файле
+	scanner := bufio.NewScanner(destFile)
+	scanner.Buffer(make([]byte, 0, 1000), 1010)
+	lines := []string{}
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	if len(lines) != int(smallFileLinesCount) {
+		linesOK = false
+	}
+	// подводим итоги
+	t.Logf("Running ExecuteSort took %vmsec.", end.Milliseconds())
+	t.Logf("Generated testfile size: %vb", smallFileSize)
+	if !sizeOK {
+		t.Logf("Size of output file: %vb", destInfo.Size())
+		t.Fatalf("Discrepancy in input and output file sizes!")
+
+	}
+	if !linesOK {
+		t.Logf("N of lines in input file:\n %v", smallFileLinesCount)
+		t.Logf("N of lines in output file:\n %v", len(lines))
+		t.Fatalf("Discrepancy in lines count!")
+	}
 }
 
 func TestBigFileNumericReverseSortFirstColumn(t *testing.T) {
+	// подсовываем аргументы для обработки в Cobra
 	os.Args = []string{
 		os.Args[0],
 		"-n", // числовая сортировка
@@ -39,12 +154,15 @@ func TestBigFileNumericReverseSortFirstColumn(t *testing.T) {
 		"1",         // по первой колонке - она числовая
 		bigFilePath, // имя файла
 	}
+
+	// перехватываем вывод
 	buf := &bytes.Buffer{}
-	OutputDST = buf
+	cmd.OutputDST = buf
+	defer func() { cmd.OutputDST = nil }()
 
 	// выполняем саму сортировку с отсчетом времени
 	start := time.Now()
-	Execute()
+	cmd.Execute()
 	end := time.Since(start)
 
 	// проверка результата
@@ -87,7 +205,7 @@ func TestMain(m *testing.M) {
 	// генерим тестовый файл с мокамии
 	err := prepareTestFiles()
 	if err != nil {
-		log.Printf("Failed to generate mock-file: %v", err)
+		log.Printf("Failed to generate mock-files: %v", err)
 		os.Exit(1)
 	}
 
@@ -103,7 +221,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	if model.OptsContainer.WriteToFile != "" {
-		err := os.Remove(model.OptsContainer.WriteToFile)
+		err := os.Remove(dstFileName)
 		if err != nil {
 			log.Printf("Failed to remove DST mock-file: %v", err)
 			os.Exit(1)
@@ -131,10 +249,10 @@ func prepareTestFiles() error {
 	letters := []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZабвгдежзиклмнопрстуфхцчшщъыьэюяАБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ")
 	numbers := []rune("0123456789")
 
-	fileSize := reader.MaxFileSize + reader.MaxFileSize*2/10 // делаем размер 120% от порога дробления файла на врем. файлы
+	maxFileSize := reader.MaxFileSize + reader.MaxFileSize*2/10 // делаем размер 120% от порога дробления файла на врем. файлы
 	human := []string{}
 	for k := range utils.Multipliers { // грузим актуальные суффиксы из карты основной программы
-		human = append(human, k)
+		human = append(human, strings.ToLower(k))
 	}
 
 	for {
@@ -164,7 +282,7 @@ func prepareTestFiles() error {
 			first10linesBigFile = append(first10linesBigFile, generatedLine)
 		}
 
-		if info, _ := tmpBigFile.Stat(); info.Size() > fileSize {
+		if info, _ := tmpBigFile.Stat(); info.Size() > maxFileSize {
 			bigFileSize = info.Size()
 			break
 		}
@@ -176,8 +294,6 @@ func prepareTestFiles() error {
 	defer tmpBigFile.Close()
 	defer tmpSmallFile.Close()
 
-	buf := &bytes.Buffer{}
-	OutputDST = buf
 	bigFilePath = tmpBigFile.Name()
 	smallFilePath = tmpSmallFile.Name()
 

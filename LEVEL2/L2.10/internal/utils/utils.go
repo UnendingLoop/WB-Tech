@@ -14,21 +14,21 @@ import (
 
 var Multipliers = map[string]float64{
 	"K":  1024,
-	"Kb": 1024,
+	"KB": 1024,
 	"M":  1024 * 1024,
-	"Mb": 1024 * 1024,
+	"MB": 1024 * 1024,
 	"G":  1024 * 1024 * 1024,
-	"Gb": 1024 * 1024 * 1024,
+	"GB": 1024 * 1024 * 1024,
 	"T":  1024 * 1024 * 1024 * 1024,
-	"Tb": 1024 * 1024 * 1024 * 1024,
+	"TB": 1024 * 1024 * 1024 * 1024,
 	"К":  1024,
-	"Кб": 1024,
+	"КБ": 1024,
 	"М":  1024 * 1024,
-	"Мб": 1024 * 1024,
+	"МБ": 1024 * 1024,
 	"Г":  1024 * 1024 * 1024,
-	"Гб": 1024 * 1024 * 1024,
+	"ГБ": 1024 * 1024 * 1024,
 	"Т":  1024 * 1024 * 1024 * 1024,
-	"Тб": 1024 * 1024 * 1024 * 1024,
+	"ТБ": 1024 * 1024 * 1024 * 1024,
 }
 
 // GetKey - returns value from the specified column of input line using specified delimeter
@@ -56,6 +56,14 @@ func UniqueLines(lines []string) []string {
 
 	for _, line := range lines {
 		column := GetKey(line)
+		if model.OptsContainer.HumanSort {
+			parsedLine, err := ParseHumanSize(column)
+			if err != nil {
+				log.Fatalf("Failed to human-convert text to float64: %v", err)
+			}
+			column = strconv.FormatFloat(parsedLine, 'f', -1, 64)
+		}
+
 		if _, ok := seen[column]; !ok {
 			seen[column] = struct{}{}
 			result = append(result, line)
@@ -145,6 +153,7 @@ func ReadFileToRAM(fileName string) ([]string, error) {
 func WriteLinesToFile(lines []string, fileName string) error {
 	file, err := os.Create(fileName)
 	if err != nil {
+		log.Printf("Failed to create output file: %v", err)
 		return err
 	}
 	defer func() {

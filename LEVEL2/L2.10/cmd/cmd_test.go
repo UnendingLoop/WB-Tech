@@ -19,6 +19,7 @@ func TestExecuteSort_LinesMemory(t *testing.T) {
 	// Перенаправляем вывод в буфер
 	buf := &bytes.Buffer{}
 	OutputDST = buf
+	defer func() { OutputDST = nil }()
 	model.OptsContainer.WriteToFile = "" // Чтобы не пытался писать в файл
 	model.OptsContainer.Unique = false
 
@@ -44,6 +45,7 @@ func TestExecuteSort_Unique(t *testing.T) {
 
 	buf := &bytes.Buffer{}
 	OutputDST = buf
+	defer func() { OutputDST = nil }()
 	model.OptsContainer.WriteToFile = ""
 	model.OptsContainer.Unique = true
 
@@ -103,6 +105,7 @@ func TestExecuteSort_TmpFiles(t *testing.T) {
 
 	buf := &bytes.Buffer{}
 	OutputDST = buf
+	defer func() { OutputDST = nil }()
 	model.OptsContainer.WriteToFile = ""
 	model.OptsContainer.Unique = false
 
