@@ -20,8 +20,6 @@ func (h StrHeap) Less(i, j int) bool { // Переиспользуем Universal
 func (h StrHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 
 func (h *StrHeap) Push(x any) {
-	// Push and Pop use pointer receivers because they modify the slice's length,
-	// not just its contents.
 	*h = append(*h, x.(*FileLine))
 }
 

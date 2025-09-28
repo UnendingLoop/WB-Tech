@@ -40,7 +40,7 @@ func init() {
 	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.Numeric, "numeric", "n", false, "Сортировать по числам")
 	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.Reverse, "reverse", "r", false, "Сортировать в обратном порядке")
 	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.Unique, "unique", "u", false, "Выводить только уникальные строки")
-	cobraFlagParser.Flags().StringVarP(&model.OptsContainer.Delimeter, "delimeter", "d", "\t", "Указать разделитель колонок")
+	cobraFlagParser.Flags().StringVarP(&model.OptsContainer.Delimeter, "delimiter", "d", "\t", "Указать разделитель колонок")
 	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.Monthly, "monthly", "M", false, "Сортировать по месяцам")
 	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.IgnSpaces, "blanks", "b", false, "Игнорировать хвостовые пробелы")
 	cobraFlagParser.Flags().BoolVarP(&model.OptsContainer.CheckIfSorted, "check", "c", false, "Проверка отсортированности")
