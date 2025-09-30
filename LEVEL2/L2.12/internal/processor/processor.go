@@ -58,7 +58,7 @@ func countLinesToOutput(scanner *bufio.Scanner, fileName string) {
 
 	switch {
 	case parser.SP.PrintFileName:
-		fmt.Printf("%s: %d", fileName, counter)
+		fmt.Printf("%s: %d\n", fileName, counter)
 	default:
 		fmt.Println(counter)
 	}
@@ -83,13 +83,11 @@ func stdProcessWithCtx(source *bufio.Scanner, fileName string) error {
 
 		if isMatch {
 			if !isCtxZone {
-				// вставка разделителя если надо
-				if lastPrintedN != 0 && lineN-lastPrintedN > parser.SP.CtxBefore+parser.SP.CtxAfter+1 {
+				// разбираемся с BEFORE и вставляем разделитель если надо
+				j := lineN - len(beforeBuf)
+				if j-lastPrintedN > 1 && lastPrintedN != 0 {
 					output.PrintLine("--", "", 0)
 				}
-
-				// разбираемся с BEFORE
-				j := lineN - len(beforeBuf)
 				for i := range beforeBuf {
 					if _, ok := isPrinted[j]; !ok {
 						output.PrintLine(beforeBuf[i], fileName, j)
@@ -115,7 +113,7 @@ func stdProcessWithCtx(source *bufio.Scanner, fileName string) error {
 		}
 
 		// разбираемся с AFTER
-		if isCtxZone && afterCount > 0 {
+		if afterCount > 0 {
 			if _, ok := isPrinted[lineN]; !ok {
 				output.PrintLine(line, fileName, lineN)
 				lastPrintedN = lineN
@@ -134,6 +132,7 @@ func stdProcessWithCtx(source *bufio.Scanner, fileName string) error {
 			}
 			beforeBuf = append(beforeBuf, line)
 		}
+
 		lineN++
 	}
 

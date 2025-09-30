@@ -2,7 +2,6 @@
 package matcher
 
 import (
-	"regexp"
 	"strings"
 
 	"grepClone/internal/parser"
@@ -15,9 +14,8 @@ func FindMatch(line string) bool {
 
 	switch {
 	case parser.SP.ExactMatch: //-F
-		result, _ := regexp.MatchString(parser.SP.Pattern, line)
-		return result
-	default:
 		return strings.Contains(line, parser.SP.Pattern)
+	default:
+		return parser.SP.RegexpPattern.MatchString(line)
 	}
 }

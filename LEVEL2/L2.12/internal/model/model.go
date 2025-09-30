@@ -1,6 +1,8 @@
 // Package model contains data structure for storing initially provided flags and input-source values
 package model
 
+import "regexp"
+
 type SearchParam struct {
 	CtxAfter      int      // A n — вывести N строк после найденной строки
 	CtxBefore     int      // B n — вывести N строк до каждой найденной строки
@@ -13,4 +15,5 @@ type SearchParam struct {
 	Source        []string // Имя/имена файлов для чтения данных
 	Pattern       string   // Regexp или строка для поиска
 	PrintFileName bool     // used to print filename prefix if there are >1 files to process
+	RegexpPattern *regexp.Regexp
 }
