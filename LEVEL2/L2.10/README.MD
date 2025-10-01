@@ -20,33 +20,24 @@
 - `-H` — человекочитаемая сортировка (поддержка суффиксов T/Тб, Г/Гб, М/Мб, К/Кб кир./лат.)  
 - `-h` — получение справочной информации о программе  
 
-
-## Установка
-
-```bash
-git clone https://github.com/username/sortClone.git
-cd sortClone
-go build -o sortClone ./cmd
-```
-
 ## Использование
 
 ### Обратная сортировка по числам и колонке с выводом уникальных значений в файл:
 
-./sortClone -rnu input.txt -o result.txt -k 1
+./go run main.go -rnu input.txt -o result.txt -k 1
 
 ### Проверка отсортированности:
 
-./sortClone -c input.txt
+./go run main.go -c input.txt
 
 ### Сортировка по месяцам
-./sortClone -M months.txt
+./go run main.go -M months.txt
 
 ### Человекочитаемая сортировка по размеру
-./sortClone -H sizes.txt
+./go run main.go -H sizes.txt
 
 ### Сортировка по третьей колонке с разделителем ","
-./sortClone -k 2 -d "," csvfile.txt
+./go run main.go -k 2 -d "," csvfile.txt
 
 
 ## Тестирование
@@ -67,8 +58,8 @@ go test ./integration -tags=integrationtest -timeout 40s
 
 ## Структура проекта
 
-sortClone/
-├── cmd/              # Управляющий код утилиты и unit-тесты
+L2.10/
+├─ cmd/              # Управляющий код утилиты и unit-тесты
 ├── integration/      # Интеграционные тесты
 ├── internal/         # Основной код сортировки и ее вспомогательные функции
     ├── heap/         # Реализация кучи, используемой при слиянии строк из временных файлов
