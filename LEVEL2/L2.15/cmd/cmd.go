@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"regexp"
 
 	"miniShell/internal/parser"
 	"miniShell/internal/runner"
@@ -37,35 +36,9 @@ func InitReadAndRun() {
 		}
 		result := parser.ParseConditional(line)
 
-		// Подставляем переменные окружения в каждой команде каждого пайпа
-		for i := range result.Pipelines {
-			for j := range result.Pipelines[i].Commands {
-				cmd := &result.Pipelines[i].Commands[j]
-				cmd.Args = replaceEnvVars(cmd.Args)
-			}
-		}
-
 		err := runner.RunConditional(result)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		}
 	}
-}
-
-func replaceEnvVars(args []string) []string {
-	res := make([]string, len(args))
-	re := regexp.MustCompile(`\$(\w+)`) // ищем $VAR
-
-	for i, arg := range args {
-		res[i] = re.ReplaceAllStringFunc(arg, func(match string) string {
-			varName := match[1:] // убираем $
-			if val, ok := os.LookupEnv(varName); ok {
-				return val
-			}
-			// если переменной нет — оставляем $VAR
-			return match
-		})
-	}
-
-	return res
 }

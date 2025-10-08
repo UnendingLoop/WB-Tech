@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"sync"
 
 	"miniShell/internal/builtin"
@@ -62,6 +63,7 @@ func RunPipe(p model.Pipeline) error {
 	for i, cmd := range p.Commands {
 		stdin := readers[i]
 		stdout := writers[i]
+		cmd.Args = replaceEnvVars(cmd.Args)
 
 		if builtinFn, ok := builtin.BuiltInOps[cmd.Args[0]]; ok {
 			wg.Add(1)
@@ -77,7 +79,6 @@ func RunPipe(p model.Pipeline) error {
 			}(builtinFn, cmd.Args, stdin, stdout, i)
 			continue
 		}
-
 		c := exec.Command(cmd.Args[0], cmd.Args[1:]...)
 		c.Stdin = stdin
 		c.Stdout = stdout
@@ -134,4 +135,22 @@ func RunConditional(cond model.Conditional) error {
 	}
 
 	return lastErr
+}
+
+func replaceEnvVars(args []string) []string {
+	res := make([]string, len(args))
+	re := regexp.MustCompile(`\$(\w+)`) // ищем $VAR
+
+	for i, arg := range args {
+		res[i] = re.ReplaceAllStringFunc(arg, func(match string) string {
+			varName := match[1:] // убираем $
+			if val, ok := os.LookupEnv(varName); ok {
+				return val
+			}
+			// если переменной нет — оставляем $VAR
+			return match
+		})
+	}
+
+	return res
 }
