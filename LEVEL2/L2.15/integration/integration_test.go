@@ -49,7 +49,6 @@ func TestIntegration(t *testing.T) {
 		if err := runner.RunConditional(cond); err != nil {
 			t.Fatalf("Failed to run line %q: %v", tc.cmd, err)
 		}
-		// time.Sleep(1 * time.Second) // чуть меньше, но всё равно даём системе время
 		if tc.outFile != "" && len(tc.expected) > 0 {
 			data, err := os.ReadFile(tc.outFile)
 			if err != nil {

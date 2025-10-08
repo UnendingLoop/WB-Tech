@@ -1,8 +1,10 @@
+// Package runner executes commands from model.Pipeline
 package runner
 
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -69,7 +71,9 @@ func RunPipe(p model.Pipeline) error {
 			wg.Add(1)
 			go func(fn func([]string, io.Reader, io.Writer) error, args []string, in io.Reader, out io.Writer, idx int) {
 				defer wg.Done()
-				fn(args, in, out)
+				if err := fn(args, in, out); err != nil {
+					log.Printf("Error occured during %q: %v", cmd.Args[0], err)
+				}
 				// Закрываем PipeWriter сразу после завершения встроенной команды
 				if idx < num-1 {
 					if w, ok := out.(*io.PipeWriter); ok {

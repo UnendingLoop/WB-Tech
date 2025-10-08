@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/shirou/gopsutil/v3/process"
 )
@@ -113,24 +112,17 @@ func PS(args []string, stdin io.Reader, stdout io.Writer) error {
 }
 
 func KILL(args []string, stdin io.Reader, stdout io.Writer) error {
-	sig := syscall.SIGTERM
 	startIdx := 1
+	sig := os.Kill // по умолчанию
 
-	if len(args) > 1 && strings.HasPrefix(args[1], "-") {
-		num, err := strconv.Atoi(args[1][1:])
-		if err != nil {
-			return fmt.Errorf("invalid signal: %s", args[1])
-		}
-		sig = syscall.Signal(num)
-		startIdx = 2
-	}
+	// На Unix можно парсить сигнал, на Windows — только Kill
+	// Можно добавить build tag для разных платформ
 
 	if len(args) <= startIdx {
-		return fmt.Errorf("usage: kill [-signal] <pid>")
+		return fmt.Errorf("usage: kill <pid>")
 	}
 
 	pidStr := args[startIdx]
-
 	pid, err := strconv.Atoi(pidStr)
 	if err != nil {
 		return fmt.Errorf("invalid pid: %s", pidStr)
