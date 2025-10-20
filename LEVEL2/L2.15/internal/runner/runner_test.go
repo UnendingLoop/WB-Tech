@@ -1,22 +1,26 @@
-//go:build !integration
-
 package runner
 
 import (
 	"io"
-	"miniShell/internal/builtin"
-	"miniShell/internal/model"
+	"log"
 	"os"
 	"strings"
 	"testing"
+
+	"miniShell/internal/builtin"
+	"miniShell/internal/model"
 )
 
 // mock builtin for testing
 func mockEcho(args []string, in io.Reader, out io.Writer) error {
 	for _, arg := range args[1:] {
-		out.Write([]byte(arg + " "))
+		if _, err := out.Write([]byte(arg + " ")); err != nil {
+			log.Fatalf("Failed to write output: %v", err)
+		}
 	}
-	out.Write([]byte("\n"))
+	if _, err := out.Write([]byte("\n")); err != nil {
+		log.Fatalf("Failed to write output: %v", err)
+	}
 	return nil
 }
 
@@ -48,7 +52,9 @@ func TestRunPipe_PipeBuiltinToBuiltin(t *testing.T) {
 	builtin.BuiltInOps["echo"] = mockEcho
 	builtin.BuiltInOps["upper"] = func(args []string, in io.Reader, out io.Writer) error {
 		data, _ := io.ReadAll(in)
-		out.Write([]byte(strings.ToUpper(string(data))))
+		if _, err := out.Write([]byte(strings.ToUpper(string(data)))); err != nil {
+			log.Fatalf("Failed to write output: %v", err)
+		}
 		return nil
 	}
 	p := model.Pipeline{

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 
 	"miniShell/internal/parser"
 	"miniShell/internal/runner"
@@ -34,6 +35,14 @@ func InitReadAndRun() {
 		if line == "" {
 			continue
 		}
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "< ") {
+			scriptFile := strings.TrimSpace(line[2:])
+			if err := runScriptFile(scriptFile); err != nil {
+				fmt.Fprintf(os.Stderr, "Script error: %v\n", err)
+			}
+			continue
+		}
 		result := parser.ParseConditional(line)
 
 		err := runner.RunConditional(result)
@@ -41,4 +50,25 @@ func InitReadAndRun() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		}
 	}
+}
+
+func runScriptFile(filename string) error {
+	file, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("cannot open script file: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		cond := parser.ParseConditional(line)
+		if err := runner.RunConditional(cond); err != nil {
+			fmt.Fprintf(os.Stderr, "Error in script: %v\n", err)
+		}
+	}
+	return scanner.Err()
 }
