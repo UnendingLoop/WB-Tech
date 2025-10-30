@@ -15,26 +15,29 @@ import (
 	"miniWget/fetcher"
 	"miniWget/parser"
 	"miniWget/saver"
+
+	"golang.org/x/net/html"
 )
 
 // Crawler - конфиг для обхода страниц
 type Crawler struct {
-	MaxDepth     int              // глубина рекурсии скачивания из os.Args
-	Timeout      int              // таймаут соединения при скачивании по ссылкам
-	InitURL      string           // введенный пользователем URL из os.Args
-	Domain       string           // доменное имя InitURL
-	Queue        []QueueItem      // сама очередь страниц
-	Fetcher      *fetcher.Fetcher // Fetcher производит первичное скачивание по InitURL
-	Saver        *saver.Saver     // Saver скачивает ассеты текущего URL из очереди
-	Downloaded   map[string]bool  // карта для контроля скачанных ассетов/страниц - для избежания повторных скачиваний
-	RobotAllows  map[string]bool  // для выполнения требований из robots.txt
-	wg           sync.WaitGroup   // для контроля горутин скачивания ассетов
-	sync.RWMutex                  // нужно для защиты карты Downloaded
+	MaxDepth        int              // глубина рекурсии скачивания из os.Args
+	Timeout         int              // таймаут соединения при скачивании по ссылкам
+	InitURL         string           // введенный пользователем URL из os.Args
+	Domain          string           // доменное имя InitURL
+	currentPagePath string           // временно хранит путь текущей страницы при обработке HTML
+	Queue           []QueueItem      // очередь страниц на скачивание
+	Fetcher         *fetcher.Fetcher // Fetcher производит первичное скачивание по InitURL
+	Saver           *saver.Saver     // Saver скачивает ассеты текущего URL из очереди
+	Downloaded      map[string]bool  // карта для контроля скачанных ассетов/страниц - для избежания повторных скачиваний
+	RobotAllows     map[string]bool  // для выполнения требований из robots.txt
+	wg              sync.WaitGroup   // для контроля горутин скачивания ассетов
+	sync.RWMutex                     // нужно для защиты карты Downloaded
 }
 
 type QueueItem struct {
 	URL   *url.URL // распарсенный URL
-	Depth int      // уровень рекурсии считая от InitURL
+	Depth int      // текущая глубина рекурсии считая от InitURL
 }
 
 func (c *Crawler) Crawl() {
@@ -49,34 +52,133 @@ func (c *Crawler) Crawl() {
 		item := c.Queue[0]
 		c.Queue = c.Queue[1:]
 
-		// Грузим текущую страницу из очереди
 		loadedPage, err := c.Fetcher.Fetch(item.URL, c.Timeout)
 		if err != nil {
 			log.Printf("failed to fetch %s: %v", item.URL.String(), err)
 			continue
 		}
 
-		// Парсим текущую страницу - достаем ее ассеты и ссылки на другие страницы
 		links, err := parser.ParseHTML(item.URL, loadedPage.Content)
 		if err != nil {
 			log.Printf("failed to parse html %s: %v", item.URL.String(), err)
 			continue
 		}
 
-		// Сохраняем ассеты текущей страницы
 		c.downloadAssets(links.Assets)
 		c.wg.Wait()
 
-		// Добавляем новые страницы в очередь
 		c.updatePagesQueue(links.Pages, item.Depth)
 
-		// Подменяем ссылки и сохраняем страницу
-		localPageData := c.replaceLinks(loadedPage.Content, links, item.Depth)
+		// Перед заменой ссылок сохраняем текущий путь
+		c.currentPagePath = c.makeLocalPath(item.URL)
+		localPageData := c.replaceLinks(loadedPage.Content, links)
+		c.currentPagePath = ""
+
 		if err := c.saveHTML(item.URL, localPageData); err != nil {
 			log.Printf("failed to save html %s: %v", item.URL, err)
 		}
-
 	}
+}
+
+// replaceLinks — заменяем ссылки на страницы и ассеты
+func (c *Crawler) replaceLinks(htmlData []byte, links *parser.ResourceLinks) []byte {
+	if c.currentPagePath == "" {
+		return htmlData
+	}
+
+	// Сначала страницы
+	for _, pLink := range links.Pages {
+		uPage, err := url.Parse(pLink)
+		if err != nil || uPage.Host == "" {
+			continue
+		}
+
+		if !c.isAllowedPage(uPage) || !c.isRobotAllowed(uPage) {
+			continue
+		}
+
+		if c.isQueued(normalizeURL(uPage)) || c.isDownloadedURL(uPage) {
+			targetLocal := c.makeLocalPath(uPage)
+			relPath, err := filepath.Rel(filepath.Dir(c.currentPagePath), targetLocal)
+			if err != nil {
+				relPath = targetLocal
+			}
+			relPath = filepath.ToSlash(relPath)
+			htmlData = bytes.ReplaceAll(htmlData, []byte(pLink), []byte(relPath))
+		}
+	}
+
+	// Затем ассеты
+	htmlData = replaceAssetLinksInHTML(c, htmlData)
+
+	return htmlData
+}
+
+func replaceAssetLinksInHTML(c *Crawler, htmlData []byte) []byte {
+	doc, err := html.Parse(bytes.NewReader(htmlData))
+	if err != nil {
+		return htmlData
+	}
+
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			switch n.Data {
+			case "img", "script", "iframe", "video", "audio", "source":
+				for i, a := range n.Attr {
+					switch a.Key {
+					case "src", "poster":
+						if newVal := makeLocalIfDownloaded(c, a.Val); newVal != "" {
+							n.Attr[i].Val = newVal
+						}
+
+					case "srcset":
+						fixed := fixSrcset(c, a.Val)
+						if fixed != "" {
+							n.Attr[i].Val = fixed
+						}
+					}
+				}
+
+			case "link", "a", "use":
+				for i, a := range n.Attr {
+					if a.Key == "href" || a.Key == "xlink:href" {
+						if newVal := makeLocalIfDownloaded(c, a.Val); newVal != "" {
+							n.Attr[i].Val = newVal
+						}
+					}
+				}
+			}
+		}
+
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			walk(c)
+		}
+	}
+
+	walk(doc)
+
+	var buf bytes.Buffer
+	if err := html.Render(&buf, doc); err != nil {
+		log.Printf("render HTML after replacing asset links failed: %v", err)
+		return htmlData
+	}
+	return buf.Bytes()
+}
+
+// возвращает локальный путь для скачанных ассетов
+func makeLocalIfDownloaded(c *Crawler, link string) string {
+	u, err := url.Parse(link)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+
+	if !c.isDownloadedURL(u) {
+		return ""
+	}
+
+	localPath := c.makeLocalPath(u)
+	return c.makeRelativeToMirror(localPath)
 }
 
 func (c *Crawler) updatePagesQueue(newPages []string, parentDepth int) {
@@ -86,38 +188,40 @@ func (c *Crawler) updatePagesQueue(newPages []string, parentDepth int) {
 
 	for _, page := range newPages {
 		nextURL, err := url.Parse(page)
-		if err == nil && c.isAllowedPage(nextURL) && c.isRobotAllowed(nextURL) && !c.isDownloaded(page) && !c.isQueued(page) {
+		if err == nil && c.isAllowedPage(nextURL) && c.isRobotAllowed(nextURL) && !c.isDownloadedURL(nextURL) && !c.isQueued(normalizeURL(nextURL)) {
 			c.Queue = append(c.Queue, QueueItem{URL: nextURL, Depth: parentDepth + 1})
 		}
 	}
-	log.Printf("Updated pages queue is: %v", c.Queue)
+	// log.Printf("Updated pages queue is: %v", c.Queue)
 }
 
-// Oтметка скачивания:
-func (c *Crawler) markAsDownloaded(rawURL string) {
+// помечаем URL как скачанный
+func (c *Crawler) markAsDownloadedURL(u *url.URL) {
+	key := normalizeURL(u)
+	if key == "" {
+		return
+	}
 	c.Lock()
-	c.Downloaded[rawURL] = true
+	c.Downloaded[key] = true
 	c.Unlock()
 }
 
-// Проверка скачивания:
-func (c *Crawler) isDownloaded(rawURL string) bool {
+// isDownloadedURL проверяет по нормализованному URL
+func (c *Crawler) isDownloadedURL(u *url.URL) bool {
+	key := normalizeURL(u)
+	if key == "" {
+		return false
+	}
 	c.RLock()
 	defer c.RUnlock()
-	return c.Downloaded[rawURL]
+	return c.Downloaded[key]
 }
 
-// Для страниц - только строго тот же домен
+// проверка разрешенности домена для страниц
 func (c *Crawler) isAllowedPage(u *url.URL) bool {
 	return u.Host == c.Domain
 }
 
-// Для ассетов - разрешаем поддомены
-func (c *Crawler) isAllowedAsset(u *url.URL) bool {
-	return strings.HasSuffix(u.Host, "."+c.Domain) || u.Host == c.Domain
-}
-
-// Скачивает и сохраняет ассеты текущей страницы из очереди
 func (c *Crawler) downloadAssets(assetURLs []string) {
 	for _, asset := range assetURLs {
 		if idx := strings.Index(asset, "#"); idx != -1 {
@@ -130,7 +234,7 @@ func (c *Crawler) downloadAssets(assetURLs []string) {
 			continue
 		}
 
-		if c.isDownloaded(asset) || !c.isAllowedAsset(u) {
+		if c.isDownloadedURL(u) {
 			continue
 		}
 
@@ -147,13 +251,13 @@ func (c *Crawler) downloadAssets(assetURLs []string) {
 			if _, err := c.Saver.Save(localPath, result.Content); err != nil {
 				log.Printf("failed to save asset %s: %v", localPath, err)
 			} else {
-				c.markAsDownloaded(u.String())
+				c.markAsDownloadedURL(u)
 			}
 		}(u)
 	}
 }
 
-// localPath вычисляет путь сохранения с учётом того, что InitURL — корень
+// вычисляем путь сохранения относительно InitURL
 func (c *Crawler) makeLocalPath(u *url.URL) string {
 	base, _ := url.Parse(c.InitURL)
 	rel := strings.TrimPrefix(u.Path, "/")
@@ -161,6 +265,13 @@ func (c *Crawler) makeLocalPath(u *url.URL) string {
 	// если это самая первая страница — кладём прямо в корень
 	if u.String() == base.String() {
 		return filepath.Join("mirror", u.Host, "index.html")
+	}
+
+	ext := strings.ToLower(filepath.Ext(rel))
+	switch ext {
+	case ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico", ".woff", ".woff2", ".ttf":
+		filename := filepath.Base(rel)
+		return filepath.Join("mirror", c.Domain, "_assets", filename)
 	}
 
 	// если путь пустой или заканчивается на /
@@ -183,53 +294,7 @@ func (c *Crawler) makeLocalPath(u *url.URL) string {
 	return filepath.Join(localDir, rel)
 }
 
-// Своппинг ссылок на локальные пути
-func (c *Crawler) replaceLinks(htmlData []byte, links *parser.ResourceLinks, currentDepth int) []byte {
-	for _, pLink := range links.Pages {
-		uPage, err := url.Parse(pLink)
-		if err != nil || uPage.Host == "" {
-			continue
-		}
-
-		// Проверяем свой-чужой(домен) и соответствие правилам robots.txt
-		if !c.isAllowedPage(uPage) || !c.isRobotAllowed(uPage) {
-			continue
-		}
-
-		// Проверяем глубину и очередь — чтобы менять ccылки только тех страниц, которые реально скачиваем или уже скачали
-		if currentDepth+1 > c.MaxDepth || !c.isAllowedPage(uPage) {
-			continue
-		}
-
-		// Формируем локальный абсолютный путь
-		localPath := c.makeLocalPath(uPage)
-
-		// Преобразуем в "корневой" URL относительно зеркала
-		relPath := c.makeRelativeToMirror(localPath)
-
-		htmlData = bytes.ReplaceAll(htmlData, []byte(pLink), []byte(relPath))
-	}
-
-	for _, aLink := range links.Assets {
-		uAsset, err := url.Parse(aLink)
-		if err != nil || uAsset.Host == "" {
-			continue
-		}
-
-		if !c.isDownloaded(aLink) || !c.isAllowedAsset(uAsset) {
-			continue
-		}
-
-		localPath := c.makeLocalPath(uAsset)
-		relPath := c.makeRelativeToMirror(localPath)
-
-		htmlData = bytes.ReplaceAll(htmlData, []byte(aLink), []byte(relPath))
-	}
-
-	return htmlData
-}
-
-// превращает абсолютный локальный путь типа mirror/habr.com/assets/* в /assets/*
+// превращаем абсолютный локальный путь типа mirror/habr.com/assets/* в /assets/*
 func (c *Crawler) makeRelativeToMirror(localPath string) string {
 	localPath = filepath.ToSlash(localPath)
 
@@ -237,19 +302,12 @@ func (c *Crawler) makeRelativeToMirror(localPath string) string {
 	prefix := filepath.ToSlash(filepath.Join("mirror", c.Domain)) + "/"
 
 	// Убираем его из начала пути
-	if strings.HasPrefix(localPath, prefix) {
-		localPath = localPath[len(prefix)-1:] // сохраняем ведущий слеш
-	}
-
-	// Гарантируем, что путь начинается с '/'
-	if !strings.HasPrefix(localPath, "/") {
-		localPath = "/" + localPath
-	}
+	localPath = strings.TrimPrefix(localPath, prefix)
 
 	return localPath
 }
 
-// переписывает абсолютные пути внутри HTML в относительные
+// переделываем абсолютные пути внутри HTML в относительные
 func (c *Crawler) makeRelativePaths(basePath string, html []byte) []byte {
 	depth := strings.Count(filepath.Dir(basePath), string(os.PathSeparator)) - 2 // -2 чтобы не считать mirror/domain
 	if depth < 0 {
@@ -261,7 +319,7 @@ func (c *Crawler) makeRelativePaths(basePath string, html []byte) []byte {
 	return html
 }
 
-// сохраняет HTML с правильной структурой и относительными путями
+// сохраняем HTML с правильной структурой и относительными путями
 func (c *Crawler) saveHTML(u *url.URL, body []byte) error {
 	local := c.makeLocalPath(u)
 	log.Printf("[PAGE] downloading: %s", u.String())
@@ -276,7 +334,7 @@ func (c *Crawler) saveHTML(u *url.URL, body []byte) error {
 		return err
 	}
 
-	c.markAsDownloaded(u.String())
+	c.markAsDownloadedURL(u)
 
 	return nil
 }
@@ -317,11 +375,85 @@ func (c *Crawler) LoadRobots() {
 	}
 }
 
-func (c *Crawler) isQueued(rawURL string) bool {
+func (c *Crawler) isQueued(rawOrNorm string) bool {
+	// rawOrNorm может быть уже нормализованной строкой (normalizeURL)
 	for _, item := range c.Queue {
-		if item.URL.String() == rawURL {
+		if normalizeURL(item.URL) == rawOrNorm || item.URL.String() == rawOrNorm {
 			return true
 		}
 	}
 	return false
+}
+
+// заменяем URL в srcset на локальные пути из _assets.
+func fixSrcset(c *Crawler, srcset string) string {
+	const ReplaceAllSrcset = true // если false — оставит сетевые ссылки как fallback
+
+	// Разбиваем по запятым (разные размеры: 480w, 780w и т.п.)
+	parts := strings.Split(srcset, ",")
+	for i, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+
+		// srcset может быть в формате: "https://...jpg 780w"
+		fields := strings.Fields(part)
+		if len(fields) == 0 {
+			continue
+		}
+
+		link := fields[0]
+		u, err := url.Parse(strings.TrimSpace(link))
+		if err != nil || u.Host == "" {
+			continue
+		}
+
+		// Если ассет уже скачан — подменяем ссылку на локальный путь
+		if c.isDownloadedURL(u) {
+			localPath := c.makeLocalPath(u)
+			relPath := c.makeRelativeToMirror(localPath)
+			fields[0] = relPath
+			parts[i] = strings.Join(fields, " ")
+			continue
+		}
+
+		// Если не скачан — удаляем, если включён ReplaceAllSrcset
+		if ReplaceAllSrcset {
+			parts[i] = ""
+		}
+	}
+
+	// Удаляем пустые элементы и собираем обратно
+	var result []string
+	for _, p := range parts {
+		if strings.TrimSpace(p) != "" {
+			result = append(result, p)
+		}
+	}
+
+	return strings.TrimSpace(strings.Join(result, ", "))
+}
+
+// возвращаем нормализованный URL для мапы Downloaded/Queue.
+func normalizeURL(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	nu := *u // копия
+	nu.Fragment = ""
+	// Для простоты: если путь == "" => "/"
+	if nu.Path == "" {
+		nu.Path = "/"
+	}
+	// Убрать лишний конечный слеш (но не для корня "/")
+	if len(nu.Path) > 1 && strings.HasSuffix(nu.Path, "/") {
+		nu.Path = strings.TrimRight(nu.Path, "/")
+	}
+	// Схема и хост в нижний регистр
+	nu.Scheme = strings.ToLower(nu.Scheme)
+	nu.Host = strings.ToLower(nu.Host)
+	// Не включаем User/Password
+	nu.User = nil
+	return nu.String()
 }

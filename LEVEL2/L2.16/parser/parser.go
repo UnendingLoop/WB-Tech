@@ -1,4 +1,4 @@
-// Package parser recursively parses provided html-code as a DOM-tree. Result - list of URLs to htmls and to other stuff to download
+// Package parser recursively parses provided html-code as a DOM-tree. Result - list of all URLs to htmls and to other stuff to download
 package parser
 
 import (

@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"golang.org/x/net/html"
@@ -53,9 +54,13 @@ func (f *Fetcher) Fetch(inputURL *url.URL, t int) (*FetchResult, error) {
 		contentType = http.DetectContentType(body)
 	}
 
+	if strings.HasPrefix(contentType, "text/html") {
+		body = makeLinksAbsolute(inputURL, body)
+	}
+
 	return &FetchResult{
 		URL:         inputURL,
-		Content:     makeLinksAbsolute(inputURL, body),
+		Content:     body,
 		ContentType: contentType,
 	}, nil
 }
