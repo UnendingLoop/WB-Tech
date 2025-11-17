@@ -30,10 +30,6 @@ func NewEventHandler(srv service.EventService) EventHandler {
 }
 
 func (eh *eventHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "Only POST method is allowed")
-		return
-	}
 	if r.Body == nil {
 		writeError(w, http.StatusBadRequest, "Отсутствует тело запроса")
 		return
@@ -59,10 +55,6 @@ func (eh *eventHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (eh *eventHandler) UpdateEvent(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { // должен быть метод PATCH, но задание требует использование именно POST
-		writeError(w, http.StatusMethodNotAllowed, "Only POST method is allowed")
-		return
-	}
 	if r.Body == nil {
 		writeError(w, http.StatusBadRequest, "Отсутствует тело запроса")
 		return
@@ -92,11 +84,6 @@ func (eh *eventHandler) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (eh *eventHandler) DeleteEvent(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { // по заданию POST
-		writeError(w, http.StatusMethodNotAllowed, "Only POST method is allowed")
-		return
-	}
-
 	if r.Body == nil {
 		writeError(w, http.StatusBadRequest, "Отсутствует тело запроса")
 		return
@@ -185,11 +172,6 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 }
 
 func prepareToGetEvents(w http.ResponseWriter, r *http.Request) (int, string) {
-	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "Only GET method is allowed")
-		return 0, ""
-	}
-
 	q := r.URL.Query()
 	id, err := strconv.Atoi(q.Get("user_id"))
 	if err != nil {

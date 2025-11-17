@@ -39,8 +39,8 @@ func InitApp() {
 
 	r := chi.NewRouter()
 	r.Post("/create_event", hndlr.CreateEvent)       // создание нового события
-	r.Post("/update_event", hndlr.UpdateEvent)       // обновление существующего
-	r.Post("/delete_event", hndlr.DeleteEvent)       // удаление
+	r.Post("/update_event", hndlr.UpdateEvent)       // обновление существующего // должен быть метод PATCH, но задание требует использование именно POST
+	r.Post("/delete_event", hndlr.DeleteEvent)       // удаление // по заданию POST, должно быть DELETE
 	r.Get("/events_for_day", hndlr.GetDayEvents)     // получить все события на день ?user_id=1&date=2023-12-31
 	r.Get("/events_for_week", hndlr.GetWeekEvents)   // события на неделю ?user_id=1&date=2023-12-31
 	r.Get("/events_for_month", hndlr.GetMonthEvents) // события на месяц ?user_id=1&date=2023-12-31

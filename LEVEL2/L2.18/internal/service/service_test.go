@@ -45,11 +45,9 @@ func (m *mockRepo) GetPeriodEvents(uid model.UserID, start, end time.Time) []mod
 }
 
 func (m *mockRepo) SafeLockMap() {
-	return
 }
 
 func (m *mockRepo) SafeUnlockMap() {
-	return
 }
 
 // Сами тесты
