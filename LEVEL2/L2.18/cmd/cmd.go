@@ -87,6 +87,8 @@ func InitApp() {
 		repo.SafeLockMap()
 		if err := storage.SaveEventsToFile(filename, emap); err != nil {
 			log.Printf("Failed to save eventsmap to file: %v", err)
+		} else {
+			log.Println("Eventsmap successfully saved to file.")
 		}
 		repo.SafeUnlockMap()
 
